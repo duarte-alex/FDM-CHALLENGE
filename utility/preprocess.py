@@ -2,36 +2,38 @@ import pandas as pd
 from collections import defaultdict
 import os
 from openpyxl import load_workbook
+from fastapi import UploadFile
+from io import BytesIO
 
 
-def handle_non_tabular(path: str) -> bool:
+def handle_non_tabular(file: UploadFile) -> bool:
     """
     Parses non-tabular Excel or CSV file with triplet-format rows.
 
     Args:
-        path (str): Path to the file (.xlsx, .xls, .csv)
+        file (UploadFile): Uploaded file object (.xlsx, .xls, .csv)
 
     Returns:
         bool: True if saving was successful, False otherwise.
     """
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"File not found: {path}")
-
-    ext = os.path.splitext(path)[-1].lower()
+    ext = os.path.splitext(file.filename)[-1].lower()
     rows = []
 
     if ext == ".xlsx":
-        wb = load_workbook(path, data_only=True)
+        wb = load_workbook(BytesIO(file.file.read()), data_only=True)
         ws = wb.active
         rows = list(ws.iter_rows(values_only=True))
+        file.file.seek(0)
 
     elif ext == ".xls":
-        df = pd.read_excel(path, header=None, engine="xlrd")
+        df = pd.read_excel(file.file, header=None, engine="xlrd")
         rows = df.values.tolist()
+        file.file.seek(0)
 
     elif ext == ".csv":
-        df = pd.read_csv(path, header=None)
+        df = pd.read_csv(file.file, header=None)
         rows = df.values.tolist()
+        file.file.seek(0)
 
     else:
         raise ValueError(f"Unsupported file format: {ext}")
@@ -80,48 +82,44 @@ def handle_non_tabular(path: str) -> bool:
     return True
 
 
-def sheet_to_pandas(path: str, skip=1) -> pd.DataFrame:
+def sheet_to_pandas(file: UploadFile, skip=1) -> pd.DataFrame:
     """
-    Load a spreadsheet (.xlsx, .xls, .csv) into a pandas DataFrame.
-    Can be used for the simple case of a single sheet with tabular data:
-    e.g. product_groups_monthly
+    Load a spreadsheet into a pandas DataFrame for tabular data.
 
     Args:
-        path (str): Path to the spreadsheet file.
+        file (UploadFile): Uploaded file object (.xlsx, .xls, .csv)
+        skip (int): Number of rows to skip from the top
 
     Returns:
         pd.DataFrame: Parsed DataFrame.
     """
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"File not found: {path}")
-
-    ext = os.path.splitext(path)[-1].lower()
+    ext = os.path.splitext(file.filename)[-1].lower()
 
     if ext == ".xlsx":
-        return pd.read_excel(path, engine="openpyxl", skiprows=skip)
+        return pd.read_excel(BytesIO(file.file.read()), engine="openpyxl", skiprows=skip)
 
     elif ext == ".xls":
-        return pd.read_excel(path, engine="xlrd", skiprows=skip)
+        return pd.read_excel(file.file, engine="xlrd", skiprows=skip)
 
     elif ext == ".csv":
-        return pd.read_csv(path, encoding="utf-8", skiprows=skip)
+        return pd.read_csv(file.file, encoding="utf-8", skiprows=skip)
 
     else:
         raise ValueError(f"Unsupported file format: {ext}")
 
 
-def process_steel_grade(path: str, col_name: str = "Quality group") -> pd.DataFrame:
+def process_steel_grade(file: UploadFile, col_name: str = "Quality group") -> pd.DataFrame:
     """
-    Load a spreadsheet (.xlsx, .xls, .csv) into a pandas DataFrame
-    and process with forward fill and dropna.
+    Load a spreadsheet and process with forward fill and dropna operations.
 
     Args:
-        path (str): Path to the spreadsheet file.
+        file (UploadFile): Uploaded file object (.xlsx, .xls, .csv)
+        col_name (str): Column name to apply forward fill
 
     Returns:
-        pd.DataFrame: Parsed DataFrame.
+        pd.DataFrame: Processed DataFrame.
     """
-    df = sheet_to_pandas(path, 1)
+    df = sheet_to_pandas(file, skip=1)
     df = df.dropna(axis=1, how="all")
     df[col_name] = df[col_name].ffill()
     return df
