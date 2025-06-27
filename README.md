@@ -31,9 +31,9 @@ FDM-CHALLENGE/
 
 ## Project Highlights
 
-- utility/preprocess.py: modular helper functions for preprocessing .csv, .xlsx and .xls
+- utility/: modular helper functions for preprocessing, plotting and fitting .csv, .xlsx and .xls
 - .github/workflows: github actions to ensure code compliant with black formatting
-- forecast_logic.ipynb: business oriented justification of proposed prediction method
+- app/schema.py: used sql alchemy to define schemas in accordance with project description and goals
 
 ### Prediction Formula
 
@@ -42,6 +42,11 @@ For the data provided the linear fit coefficients ($A_{fit}$ and $B_{fit}$) were
 $
 P_{Predicted Grade} = (A_{fit} \times X_{product forecast} + B_{fit}) \times G_{Grade \% average} (units: short tons)
 $
+There aren't enough data points and variables for any complex AI predictive models. The best way to define our forecast logic is by using a linear regression. It's advantages are:
+
+- **interpretability**: results for a linear regression are easy to communicate to client improving their trust and thus model aceptance
+
+- **$R \approx 1$**: there is a near perfect positive linear correlation 
 
 ## Local project set up
 
@@ -97,17 +102,14 @@ GRANT ALL PRIVILEGES ON DATABASE steel_db TO steel;
 \q
 ```
 
+sudo -u postgres psql -d steel_db -f init.sql
+
 ## Docker Setup
 
 The easiest way to run the project is using Docker, which automatically sets up both the application and PostgreSQL database. In this tutorial we assume you docker and docker compose have been installed on your system.
 
-### Quick Start
 ```bash
-# Build and start the application with database
 docker-compose up --build
-
-# Or run in detached mode (background)
-docker-compose up -d --build
 ```
 
 ### Environment Variables

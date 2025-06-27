@@ -6,11 +6,11 @@ from scipy.stats import linregress
 def get_linear_fit(x: list, y: list) -> dict:
     """
     Calculate linear regression parameters for given x and y data.
-    
+
     Args:
         x (list): List of x-values (independent variable).
         y (list): List of y-values (dependent variable).
-        
+
     Returns:
         dict: Dictionary containing linear fit parameters:
             - 'slope': Slope of the regression line
@@ -18,30 +18,26 @@ def get_linear_fit(x: list, y: list) -> dict:
             - 'r_value': Correlation coefficient
     """
     slope, intercept, r_value, p_value, std_err = linregress(x, y)
-    
-    return {
-        'slope': slope,
-        'intercept': intercept,
-        'r_value': r_value}
+
+    return {"slope": slope, "intercept": intercept, "r_value": r_value}
 
 
 def plot_linear_fit(data: dict) -> None:
     """
     Plot linear regression fits for multiple datasets.
-    
+
     Args:
-        data (dict): Dictionary where keys are labels and values are tuples of 
+        data (dict): Dictionary where keys are labels and values are tuples of
                     (x_values, y_values, color) for plotting.
-                    
+
     Returns:
         None: Displays plots using matplotlib.
     """
     for label, (x, y, color) in data.items():
-        # Linear regression
+
         slope, intercept, r_value, _, _ = linregress(x, y)
         line_eq = f"{label} Fit: y = {slope:.2f}x + {intercept:.2f} (R = {r_value:.3f})"
 
-        # Line for plotting
         x_fit = np.linspace(min(x), max(x), 100)
         y_fit = slope * x_fit + intercept
 

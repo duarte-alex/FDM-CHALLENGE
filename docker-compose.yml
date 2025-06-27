@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: fdm-challenge-app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://steel:steel@db:5432/steel_db
+    depends_on:
+      - db
+    volumes:
+      - ./data:/app/data
+      - ./app:/app/app
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    container_name: fdm-challenge-db
+    environment:
+      - POSTGRES_DB=steel_db
+      - POSTGRES_USER=steel
+      - POSTGRES_PASSWORD=steel
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
