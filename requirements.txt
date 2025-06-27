@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pydantic
+sqlalchemy
+psycopg2-binary
+pandas
+openpyxl
+python-multipart
+black
+os
+pytest
