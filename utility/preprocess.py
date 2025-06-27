@@ -96,7 +96,9 @@ def sheet_to_pandas(file: UploadFile, skip=1) -> pd.DataFrame:
     ext = os.path.splitext(file.filename)[-1].lower()
 
     if ext == ".xlsx":
-        return pd.read_excel(BytesIO(file.file.read()), engine="openpyxl", skiprows=skip)
+        return pd.read_excel(
+            BytesIO(file.file.read()), engine="openpyxl", skiprows=skip
+        )
 
     elif ext == ".xls":
         return pd.read_excel(file.file, engine="xlrd", skiprows=skip)
@@ -108,7 +110,9 @@ def sheet_to_pandas(file: UploadFile, skip=1) -> pd.DataFrame:
         raise ValueError(f"Unsupported file format: {ext}")
 
 
-def process_steel_grade(file: UploadFile, col_name: str = "Quality group") -> pd.DataFrame:
+def process_steel_grade(
+    file: UploadFile, col_name: str = "Quality group"
+) -> pd.DataFrame:
     """
     Load a spreadsheet and process with forward fill and dropna operations.
 

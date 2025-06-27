@@ -7,5 +7,7 @@ pandas
 openpyxl
 python-multipart
 black
-os
 pytest
+matplotlib
+scipy
+numpy
