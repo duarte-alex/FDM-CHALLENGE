@@ -1,0 +1,405 @@
+from utility.linear_fit import get_linear_fit
+from sqlalchemy.orm import Session
+from typing import List, Optional
+from datetime import date
+import pandas as pd
+
+from .models import schema
+
+
+def store_quality_forecast(df: pd.DataFrame, db: Session) -> int:
+    """
+    Store forecasted production data from DataFrame into ForecastedProduction table.
+
+    Args:
+        df (pd.DataFrame): DataFrame with columns: date, grade_name, heats
+        db (Session): Database session
+
+    Returns:
+        int: Number of records inserted
+    """
+    records_inserted = 0
+
+    for _, row in df.iterrows():
+        # Find the steel grade
+        steel_grade = (
+            db.query(schema.SteelGrade)
+            .filter(schema.SteelGrade.name == str(row["grade_name"]))
+            .first()
+        )
+
+        if steel_grade:
+            # Convert date if needed
+            forecast_date = (
+                pd.to_datetime(row["date"]).date()
+                if isinstance(row["date"], str)
+                else row["date"]
+            )
+
+            # Check if record already exists
+            existing = (
+                db.query(schema.ForecastedProduction)
+                .filter(
+                    schema.ForecastedProduction.date == forecast_date,
+                    schema.ForecastedProduction.grade_id == steel_grade.id,
+                )
+                .first()
+            )
+
+            if not existing:
+                forecast_record = schema.ForecastedProduction(
+                    date=forecast_date, heats=int(row["heats"]), grade_id=steel_grade.id
+                )
+                db.add(forecast_record)
+                records_inserted += 1
+
+    db.commit()
+    return records_inserted
+
+
+def store_production_history(df: pd.DataFrame, db: Session) -> int:
+    """
+    Store historical production data from DataFrame into HistoricalProduction table.
+
+    Args:
+        df (pd.DataFrame): DataFrame with columns: date, grade_name, tons
+        db (Session): Database session
+
+    Returns:
+        int: Number of records inserted
+    """
+    records_inserted = 0
+
+    for _, row in df.iterrows():
+        # Find the steel grade
+        steel_grade = (
+            db.query(schema.SteelGrade)
+            .filter(schema.SteelGrade.name == str(row["grade_name"]))
+            .first()
+        )
+
+        if steel_grade:
+            # Convert date if needed
+            production_date = (
+                pd.to_datetime(row["date"]).date()
+                if isinstance(row["date"], str)
+                else row["date"]
+            )
+
+            # Check if record already exists
+            existing = (
+                db.query(schema.HistoricalProduction)
+                .filter(
+                    schema.HistoricalProduction.date == production_date,
+                    schema.HistoricalProduction.grade_id == steel_grade.id,
+                )
+                .first()
+            )
+
+            if not existing:
+                production_record = schema.HistoricalProduction(
+                    date=production_date, tons=int(row["tons"]), grade_id=steel_grade.id
+                )
+                db.add(production_record)
+                records_inserted += 1
+
+    db.commit()
+    return records_inserted
+
+
+def store_group_breakdown(df: pd.DataFrame, db: Session) -> int:
+    """
+    Store product groups and steel grades from DataFrame.
+
+    Args:
+        df (pd.DataFrame): DataFrame with columns: product_group_name, grade_name
+        db (Session): Database session
+
+    Returns:
+        int: Number of records inserted (groups + grades)
+    """
+    records_inserted = 0
+
+    # First, insert unique product groups
+    unique_groups = df["product_group_name"].dropna().unique()
+
+    for group_name in unique_groups:
+        existing_group = (
+            db.query(schema.ProductGroup)
+            .filter(schema.ProductGroup.name == str(group_name))
+            .first()
+        )
+
+        if not existing_group:
+            product_group = schema.ProductGroup(name=str(group_name))
+            db.add(product_group)
+            records_inserted += 1
+
+    db.commit()
+
+    # Then, insert steel grades
+    current_group = None
+    for _, row in df.iterrows():
+        # Update current group if we have a new one
+        if pd.notna(row.get("product_group_name")):
+            current_group = str(row["product_group_name"])
+
+        if pd.notna(row.get("grade_name")) and current_group:
+            # Find the product group
+            product_group = (
+                db.query(schema.ProductGroup)
+                .filter(schema.ProductGroup.name == current_group)
+                .first()
+            )
+
+            if product_group:
+                existing_grade = (
+                    db.query(schema.SteelGrade)
+                    .filter(schema.SteelGrade.name == str(row["grade_name"]))
+                    .first()
+                )
+
+                if not existing_grade:
+                    steel_grade = schema.SteelGrade(
+                        name=str(row["grade_name"]), product_group_id=product_group.id
+                    )
+                    db.add(steel_grade)
+                    records_inserted += 1
+
+    db.commit()
+    return records_inserted
+
+
+# Additional CRUD operations for reading data
+
+
+def get_product_groups(db: Session) -> List[schema.ProductGroup]:
+    """Get all product groups."""
+    return db.query(schema.ProductGroup).all()
+
+
+def get_product_group_by_name(db: Session, name: str) -> Optional[schema.ProductGroup]:
+    """Get a product group by name."""
+    return (
+        db.query(schema.ProductGroup).filter(schema.ProductGroup.name == name).first()
+    )
+
+
+def create_product_group(db: Session, name: str) -> schema.ProductGroup:
+    """Create a new product group."""
+    db_product_group = schema.ProductGroup(name=name)
+    db.add(db_product_group)
+    db.commit()
+    db.refresh(db_product_group)
+    return db_product_group
+
+
+def get_steel_grades(
+    db: Session, skip: int = 0, limit: int = 100
+) -> List[schema.SteelGrade]:
+    """Get steel grades with pagination."""
+    return db.query(schema.SteelGrade).offset(skip).limit(limit).all()
+
+
+def get_steel_grade_by_name(db: Session, name: str) -> Optional[schema.SteelGrade]:
+    """Get a steel grade by name."""
+    return db.query(schema.SteelGrade).filter(schema.SteelGrade.name == name).first()
+
+
+def create_steel_grade(
+    db: Session, name: str, product_group_id: int
+) -> schema.SteelGrade:
+    """Create a new steel grade."""
+    db_steel_grade = schema.SteelGrade(name=name, product_group_id=product_group_id)
+    db.add(db_steel_grade)
+    db.commit()
+    db.refresh(db_steel_grade)
+    return db_steel_grade
+
+
+def get_historical_production(
+    db: Session,
+    grade_id: Optional[int] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    skip: int = 0,
+    limit: int = 100,
+) -> List[schema.HistoricalProduction]:
+    """Get historical production with optional filters."""
+    query = db.query(schema.HistoricalProduction)
+
+    if grade_id:
+        query = query.filter(schema.HistoricalProduction.grade_id == grade_id)
+    if start_date:
+        query = query.filter(schema.HistoricalProduction.date >= start_date)
+    if end_date:
+        query = query.filter(schema.HistoricalProduction.date <= end_date)
+
+    return query.offset(skip).limit(limit).all()
+
+
+def get_forecasted_production(
+    db: Session,
+    grade_id: Optional[int] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    skip: int = 0,
+    limit: int = 100,
+) -> List[schema.ForecastedProduction]:
+    """Get forecasted production with optional filters."""
+    query = db.query(schema.ForecastedProduction)
+
+    if grade_id:
+        query = query.filter(schema.ForecastedProduction.grade_id == grade_id)
+    if start_date:
+        query = query.filter(schema.ForecastedProduction.date >= start_date)
+    if end_date:
+        query = query.filter(schema.ForecastedProduction.date <= end_date)
+
+    return query.offset(skip).limit(limit).all()
+
+
+def get_daily_schedule(
+    db: Session,
+    schedule_date: Optional[date] = None,
+    grade_id: Optional[int] = None,
+    skip: int = 0,
+    limit: int = 100,
+) -> List[schema.DailyProductionSchedule]:
+    """Get daily production schedule with optional filters."""
+    query = db.query(schema.DailyProductionSchedule)
+
+    if schedule_date:
+        query = query.filter(schema.DailyProductionSchedule.date == schedule_date)
+    if grade_id:
+        query = query.filter(schema.DailyProductionSchedule.grade_id == grade_id)
+
+    return query.offset(skip).limit(limit).all()
+
+
+def store_daily_schedule(df: pd.DataFrame, db: Session) -> int:
+    """
+    Store daily production schedule from DataFrame.
+
+    Args:
+        df (pd.DataFrame): DataFrame with columns: date, grade_name, start_time, mould_size
+        db (Session): Database session
+
+    Returns:
+        int: Number of records inserted
+    """
+    records_inserted = 0
+
+    for _, row in df.iterrows():
+        # Find the steel grade
+        steel_grade = (
+            db.query(schema.SteelGrade)
+            .filter(schema.SteelGrade.name == str(row["grade_name"]))
+            .first()
+        )
+
+        if steel_grade:
+            # Convert date if needed
+            schedule_date = (
+                pd.to_datetime(row["date"]).date()
+                if isinstance(row["date"], str)
+                else row["date"]
+            )
+
+            schedule_record = schema.DailyProductionSchedule(
+                date=schedule_date,
+                start_time=str(row.get("start_time", "")),
+                mould_size=str(row.get("mould_size", "")),
+                grade_id=steel_grade.id,
+            )
+            db.add(schedule_record)
+            records_inserted += 1
+
+    db.commit()
+    return records_inserted
+
+
+def get_production_summary_by_grade(db: Session, grade_id: int) -> dict:
+    """Get production summary for a specific steel grade."""
+    historical = (
+        db.query(schema.HistoricalProduction)
+        .filter(schema.HistoricalProduction.grade_id == grade_id)
+        .all()
+    )
+
+    forecasted = (
+        db.query(schema.ForecastedProduction)
+        .filter(schema.ForecastedProduction.grade_id == grade_id)
+        .all()
+    )
+
+    total_historical_tons = sum(h.tons for h in historical)
+    total_forecasted_heats = sum(f.heats for f in forecasted)
+
+    return {
+        "grade_id": grade_id,
+        "historical_records": len(historical),
+        "total_historical_tons": total_historical_tons,
+        "forecasted_records": len(forecasted),
+        "total_forecasted_heats": total_forecasted_heats,
+    }
+
+
+def calculate_production_forecast_with_linear_fit(db: Session, grade_id: int) -> dict:
+    """
+    Calculate production forecast using linear regression on historical data.
+
+    Args:
+        db (Session): Database session
+        grade_id (int): Steel grade ID
+
+    Returns:
+        dict: Linear fit parameters and forecast data
+    """
+    # Get historical production data
+    historical_data = (
+        db.query(schema.HistoricalProduction)
+        .filter(schema.HistoricalProduction.grade_id == grade_id)
+        .order_by(schema.HistoricalProduction.date)
+        .all()
+    )
+
+    if len(historical_data) < 2:
+        return {"error": "Insufficient historical data for linear fit"}
+
+    # Prepare data for linear regression
+    dates = [record.date for record in historical_data]
+    tons = [record.tons for record in historical_data]
+
+    # Convert dates to numeric values (days since first date)
+    first_date = dates[0]
+    x_values = [(date - first_date).days for date in dates]
+
+    # Calculate linear fit
+    linear_fit_result = get_linear_fit(x_values, tons)
+
+    return {
+        "grade_id": grade_id,
+        "linear_fit": linear_fit_result,
+        "data_points": len(historical_data),
+        "date_range": {"start": first_date, "end": dates[-1]},
+    }
+
+
+def compute_forecast(request: dict, db: Session) -> dict:
+    """
+    Compute production forecast based on request parameters.
+
+    Args:
+        request (dict): Request parameters
+        db (Session): Database session
+
+    Returns:
+        dict: Forecast results
+    """
+    # This is a placeholder implementation
+    # You can customize this based on your specific forecasting logic
+    return {
+        "message": "Forecast computation not implemented yet",
+        "status": "placeholder",
+    }
