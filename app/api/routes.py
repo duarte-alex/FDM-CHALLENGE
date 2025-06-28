@@ -1,15 +1,24 @@
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import crud
 from ..models import pydantic
-from ..models import schema
 import pandas as pd
 from utility import preprocess
-import io
 from datetime import datetime
 
 router = APIRouter()
+
+
+def create_error_response(
+    error: str, detail: str, status_code: int = 500
+) -> JSONResponse:
+    """Create a structured error response using the ErrorResponse model."""
+    error_data = pydantic.ErrorResponse(
+        error=error, detail=detail, timestamp=datetime.now().isoformat()
+    )
+    return JSONResponse(status_code=status_code, content=error_data.model_dump())
 
 
 @router.get("/")
@@ -34,7 +43,6 @@ def root():
 def health_check(db: Session = Depends(get_db)):
     """Health check endpoint for monitoring."""
     try:
-        # Test database connection
         product_groups_count = len(crud.get_product_groups(db))
         steel_grades_count = len(crud.get_steel_grades(db, limit=1000))
 
@@ -48,7 +56,11 @@ def health_check(db: Session = Depends(get_db)):
             },
         }
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Service unhealthy: {str(e)}")
+        return create_error_response(
+            error="Service Unhealthy",
+            detail=f"Service unhealthy: {str(e)}",
+            status_code=503,
+        )
 
 
 @router.post("/forecast", response_model=pydantic.ForecastOutput)
@@ -56,15 +68,12 @@ def forecast_production(
     request: pydantic.ForecastRequest, db: Session = Depends(get_db)
 ):
     """
-    Generate production forecasts using linear regression analysis.
+    Generate production forecasts for September 2024.
 
-    Analyzes historical production data to predict future output based on:
-    - Historical tons produced per steel grade
-    - Linear regression with correlation coefficient R ≈ 1
-    - Product group breakdown percentages
+    Uses linear regression and predicts September number of heats per quality group.
+    Uses historical grade average to compute number of heats per grade using regression prediction.
     """
     return crud.compute_forecast(request, db)
-
 
 
 @router.post("/upload/production-history")
@@ -78,108 +87,138 @@ def upload_production_history(
     Stores data in HistoricalProduction table for analysis and forecasting.
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
-        raise HTTPException(
-            status_code=400, detail="Only CSV or Excel files are supported"
+        return create_error_response(
+            error="Invalid File Type",
+            detail="Only CSV or Excel files are supported",
+            status_code=400,
         )
 
     try:
         df = preprocess.sheet_to_pandas(file)
-        
-        date_columns = [col for col in df.columns if '2024' in str(col) or '2023' in str(col) or '2025' in str(col)]
-        
-        if date_columns and 'Quality:' in df.columns:
+
+        date_columns = [
+            col
+            for col in df.columns
+            if "2024" in str(col) or "2023" in str(col) or "2025" in str(col)
+        ]
+
+        if date_columns and "Quality:" in df.columns:
             # This is wide format - transform it to long format
             df_long = df.melt(
-                id_vars=['Quality:'], 
+                id_vars=["Quality:"],
                 value_vars=date_columns,
-                var_name='date', 
-                value_name='tons'
+                var_name="date",
+                value_name="tons",
             )
             # Rename Quality: to grade_name
-            df_long = df_long.rename(columns={'Quality:': 'grade_name'})
+            df_long = df_long.rename(columns={"Quality:": "grade_name"})
             # Convert date column to proper datetime
-            df_long['date'] = pd.to_datetime(df_long['date']).dt.date
+            df_long["date"] = pd.to_datetime(df_long["date"]).dt.date
         else:
             # Already in correct format
             df_long = df
-        
+
         # Debug: Check the DataFrame structure
         if df_long.empty:
-            raise HTTPException(status_code=400, detail="DataFrame is empty after processing")
-        
+            return create_error_response(
+                error="Empty DataFrame",
+                detail="DataFrame is empty after processing",
+                status_code=400,
+            )
+
         # Debug: Check required columns
-        required_cols = ['date', 'grade_name', 'tons']
+        required_cols = ["date", "grade_name", "tons"]
         missing_cols = [col for col in required_cols if col not in df_long.columns]
         if missing_cols:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Missing required columns: {missing_cols}. Available columns: {list(df_long.columns)}"
+            return create_error_response(
+                error="Missing Columns",
+                detail=f"Missing required columns: {missing_cols}. Available columns: {list(df_long.columns)}",
+                status_code=400,
             )
-        
+
         # Debug: Check for data in required columns
-        if df_long['grade_name'].isna().all():
-            raise HTTPException(status_code=400, detail="All grade_name values are null/empty")
-        
-        if df_long['tons'].isna().all():
-            raise HTTPException(status_code=400, detail="All tons values are null/empty")
-        
+        if df_long["grade_name"].isna().all():
+            return create_error_response(
+                error="Invalid Data",
+                detail="All grade_name values are null/empty",
+                status_code=400,
+            )
+
+        if df_long["tons"].isna().all():
+            return create_error_response(
+                error="Invalid Data",
+                detail="All tons values are null/empty",
+                status_code=400,
+            )
+
         records = crud.store_production_history(df_long, db)
-        
+
         if records == 0:
             # Get some sample data for debugging
-            sample_grades = df_long['grade_name'].unique()[:5]
+            sample_grades = df_long["grade_name"].unique()[:5]
             existing_grades = crud.get_steel_grades(db, limit=100)
             existing_grade_names = [g.name for g in existing_grades]
-            
-            raise HTTPException(
-                status_code=400, 
-                detail=f"No records inserted. Sample grades from file: {list(sample_grades)}. Existing grades in DB: {existing_grade_names[:10]}"
+
+            return create_error_response(
+                error="No Records Inserted",
+                detail=f"No records inserted. Sample grades from file: {list(sample_grades)}. Existing grades in DB: {existing_grade_names[:10]}",
+                status_code=400,
             )
-        
+
         return {
             "message": f"Production history uploaded successfully. {records} records inserted."
         }
     except Exception as e:
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Error processing file: {str(e)}"
+        return create_error_response(
+            error="File Processing Error",
+            detail=f"Error processing file: {str(e)}",
+            status_code=500,
         )
 
 
 @router.post("/upload/product-groups")
 def upload_product_groups(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
-    Upload product groups and steel grade classifications.
+    Upload product groups file.
 
     Expected columns: product_group_name, grade_name
     Creates relationships between product groups (Rebar, MBQ, etc.) and steel grades (B500A, A36, etc.).
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
-        raise HTTPException(
-            status_code=400, detail="Only CSV or Excel files are supported"
+        return create_error_response(
+            error="Invalid File Type",
+            detail="Only CSV or Excel files are supported",
+            status_code=400,
         )
 
-    df = preprocess.sheet_to_pandas(file)
-    
-    if 'Quality:' in df.columns:
-        df_transformed = pd.DataFrame({
-            'product_group_name': df['Quality:'],
-            'grade_name': df['Quality:']  # For now, use same as product group
-        })
-    else:
-        # Assume it's already in the correct format
-        df_transformed = df
-    
-    records = crud.store_group_breakdown(df_transformed, db)
-    return {
-        "message": f"Product group breakdown uploaded successfully. {records} records inserted."
-    }
+    try:
+        df = preprocess.sheet_to_pandas(file)
+
+        if "Quality:" in df.columns:
+            df_transformed = pd.DataFrame(
+                {
+                    "product_group_name": df["Quality:"],
+                    "grade_name": df["Quality:"],  # For now, use same as product group
+                }
+            )
+        else:
+            # Assume it's already in the correct format
+            df_transformed = df
+
+        records = crud.store_group_breakdown(df_transformed, db)
+        return {
+            "message": f"Product group breakdown uploaded successfully. {records} records inserted."
+        }
+    except Exception as e:
+        return create_error_response(
+            error="File Processing Error",
+            detail=f"Error processing file: {str(e)}",
+            status_code=500,
+        )
 
 
 @router.post("/upload/daily-schedule")
-def upload_daily_schedule(
-    file: UploadFile = File(...), db: Session = Depends(get_db)
-):
+def upload_daily_schedule(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
     Upload daily production schedule from Excel/CSV files.
 
@@ -187,15 +226,24 @@ def upload_daily_schedule(
     Stores data in DailyProductionSchedule table.
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
-        raise HTTPException(
-            status_code=400, detail="Only CSV or Excel files are supported"
+        return create_error_response(
+            error="Invalid File Type",
+            detail="Only CSV or Excel files are supported",
+            status_code=400,
         )
 
-    df = preprocess.sheet_to_pandas(file)
-    records = crud.store_daily_schedule(df, db)
-    return {
-        "message": f"Daily schedule uploaded successfully. {records} records inserted."
-    }
+    try:
+        df = preprocess.sheet_to_pandas(file)
+        records = crud.store_daily_schedule(df, db)
+        return {
+            "message": f"Daily schedule uploaded successfully. {records} records inserted."
+        }
+    except Exception as e:
+        return create_error_response(
+            error="File Processing Error",
+            detail=f"Error processing file: {str(e)}",
+            status_code=500,
+        )
 
 
 @router.get("/product-groups")

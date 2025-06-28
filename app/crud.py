@@ -1,11 +1,12 @@
 from utility.linear_fit import get_linear_fit
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import date
+from datetime import date, timedelta
 import pandas as pd
 from fastapi import HTTPException
 from .models import schema
 from .models import pydantic
+
 
 def store_production_history(df: pd.DataFrame, db: Session) -> int:
     """
@@ -345,7 +346,6 @@ def compute_forecast(
     Returns:
         ForecastOutput: Forecast results
     """
-    from datetime import date, timedelta
 
     # For now, return a properly structured response for the first grade_id
     # This is a placeholder implementation that returns valid data structure
@@ -369,13 +369,7 @@ def compute_forecast(
     # Placeholder linear fit data
     linear_fit = None
     if request.include_linear_fit:
-        linear_fit = pydantic.LinearFitData(
-            slope=1.2,
-            intercept=100.0,
-            r_value=0.98,
-            r_squared=0.96,
-            equation="y = 1.2x + 100.0",
-        )
+        linear_fit = pydantic.LinearFitData(slope=1.2, intercept=100.0)
 
     return pydantic.ForecastOutput(
         grade_id=grade_id,
