@@ -21,9 +21,9 @@ def root():
         "docs": "/docs",
         "endpoints": {
             "forecast": "/forecast",
-            "upload_quality_forecast": "/upload/quality-forecast",
             "upload_production_history": "/upload/production-history",
-            "upload_group_breakdown": "/upload/group-breakdown",
+            "upload_product_groups": "/upload/product-groups",
+            "upload_daily_schedule": "/upload/daily-schedule",
             "product_groups": "/product-groups",
             "steel_grades": "/steel-grades",
         },
@@ -66,27 +66,6 @@ def forecast_production(
     return crud.compute_forecast(request, db)
 
 
-@router.post("/upload/quality-forecast")
-def upload_quality_forecast(
-    file: UploadFile = File(...), db: Session = Depends(get_db)
-):
-    """
-    Upload forecasted production data from Excel/CSV files.
-
-    Expected columns: date, grade_name, heats
-    Stores data in ForecastedProduction table.
-    """
-    if not file.filename.endswith((".csv", ".xlsx", ".xls")):
-        raise HTTPException(
-            status_code=400, detail="Only CSV or Excel files are supported"
-        )
-
-    df = preprocess.sheet_to_pandas(file)
-    records = crud.store_quality_forecast(df, db)
-    return {
-        "message": f"Quality forecast data uploaded successfully. {records} records inserted."
-    }
-
 
 @router.post("/upload/production-history")
 def upload_production_history(
@@ -104,14 +83,35 @@ def upload_production_history(
         )
 
     df = preprocess.sheet_to_pandas(file)
-    records = crud.store_production_history(df, db)
+    
+    # Transform the data if needed
+    # Check if this is the wide format with 'Quality:' column and date columns
+    date_columns = [col for col in df.columns if '2024' in str(col) or '2023' in str(col) or '2025' in str(col)]
+    
+    if date_columns and 'Quality:' in df.columns:
+        # This is wide format - transform it to long format
+        df_long = df.melt(
+            id_vars=['Quality:'], 
+            value_vars=date_columns,
+            var_name='date', 
+            value_name='tons'
+        )
+        # Rename Quality: to grade_name
+        df_long = df_long.rename(columns={'Quality:': 'grade_name'})
+        # Convert date column to proper datetime
+        df_long['date'] = pd.to_datetime(df_long['date']).dt.date
+    else:
+        # Already in correct format
+        df_long = df
+    
+    records = crud.store_production_history(df_long, db)
     return {
         "message": f"Production history uploaded successfully. {records} records inserted."
     }
 
 
-@router.post("/upload/group-breakdown")
-def upload_group_breakdown(file: UploadFile = File(...), db: Session = Depends(get_db)):
+@router.post("/upload/product-groups")
+def upload_product_groups(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
     Upload product groups and steel grade classifications.
 
@@ -124,9 +124,41 @@ def upload_group_breakdown(file: UploadFile = File(...), db: Session = Depends(g
         )
 
     df = preprocess.sheet_to_pandas(file)
-    records = crud.store_group_breakdown(df, db)
+    
+    if 'Quality:' in df.columns:
+        df_transformed = pd.DataFrame({
+            'product_group_name': df['Quality:'],
+            'grade_name': df['Quality:']  # For now, use same as product group
+        })
+    else:
+        # Assume it's already in the correct format
+        df_transformed = df
+    
+    records = crud.store_group_breakdown(df_transformed, db)
     return {
         "message": f"Product group breakdown uploaded successfully. {records} records inserted."
+    }
+
+
+@router.post("/upload/daily-schedule")
+def upload_daily_schedule(
+    file: UploadFile = File(...), db: Session = Depends(get_db)
+):
+    """
+    Upload daily production schedule from Excel/CSV files.
+
+    Expected columns: date, grade_name, start_time, mould_size
+    Stores data in DailyProductionSchedule table.
+    """
+    if not file.filename.endswith((".csv", ".xlsx", ".xls")):
+        raise HTTPException(
+            status_code=400, detail="Only CSV or Excel files are supported"
+        )
+
+    df = preprocess.sheet_to_pandas(file)
+    records = crud.store_daily_schedule(df, db)
+    return {
+        "message": f"Daily schedule uploaded successfully. {records} records inserted."
     }
 
 

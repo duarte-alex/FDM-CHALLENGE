@@ -226,10 +226,10 @@ erDiagram
    - **API Root**: http://localhost:8000
 
 3. **Upload data to populate the database:**
-   - Use the interactive docs at `/docs` to upload your Excel/CSV files
-   - Upload product groups via `/upload/group-breakdown`
-   - Upload historical production via `/upload/production-history`
-   - Upload forecast data via `/upload/quality-forecast`
+   - Use the interactive docs at `/docs` to upload your Excel/CSV files:
+   - **Product Groups**: Upload `product_groups_monthly.xlsx` via `/upload/product-groups`
+   - **Historical Production**: Upload `steel_grade_production.xlsx` via `/upload/production-history`  
+   - **Daily Schedule**: Upload `daily_charge_schedule.xlsx` via `/upload/daily-schedule`
 
 4. **Test the endpoints:**
    - View product groups: `GET /product-groups`
@@ -239,6 +239,22 @@ erDiagram
 
 Alternatively, 
 
+### **Demo Data Generator**
+
+For easy testing and evaluation, use the included demo data generator:
+
+```bash
+python generate_demo_data.py
+```
+
+This creates realistic sample data in `demo_data/` directory:
+- **product_groups_demo.csv**: Product groups and steel grade relationships
+- **historical_production_demo.csv**: 2 years of historical production data
+- **forecasted_production_demo.csv**: 6 months of forecasted production
+- **daily_schedule_demo.csv**: 30 days of production schedules
+
+Upload these files via the API endpoints to quickly populate the database for testing.
+
 ### **API Endpoints**
 
 | Method | Endpoint | Description |
@@ -247,9 +263,9 @@ Alternatively,
 | GET | `/health` | Health check endpoint for monitoring |
 | GET | `/docs` | Interactive API documentation |
 | POST | `/forecast` | Generate production forecasts using linear regression |
-| POST | `/upload/quality-forecast` | Upload forecasted production data |
 | POST | `/upload/production-history` | Upload historical production data |
-| POST | `/upload/group-breakdown` | Upload product groups and steel grades |
+| POST | `/upload/product-groups` | Upload product groups and steel grades |
+| POST | `/upload/daily-schedule` | Upload daily production schedules |
 | GET | `/product-groups` | Get all product groups |
 | GET | `/steel-grades` | Get all steel grades with pagination |
 | GET | `/production-summary/{grade_id}` | Get production summary for specific grade |
