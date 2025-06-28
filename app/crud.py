@@ -58,20 +58,21 @@ def store_production_history(df: pd.DataFrame, db: Session) -> int:
     return records_inserted
 
 
-def store_group_breakdown(df: pd.DataFrame, db: Session) -> int:
+def store_product_groups(df: pd.DataFrame, db: Session) -> int:
     """
-    Store product groups and steel grades from DataFrame.
+    Store product groups and forecasted production data from DataFrame.
 
     Args:
-        df (pd.DataFrame): DataFrame with columns: product_group_name, grade_name
+        df (pd.DataFrame): DataFrame with columns: product_group_name, date, heats
         db (Session): Database session
 
     Returns:
-        int: Number of records inserted (groups + grades)
+        int: Number of records inserted (groups + forecasted production)
     """
-    records_inserted = 0
 
-    # insert unique product groups
+    records_inserted = 0
+    
+    # First, store unique product groups
     unique_groups = df["product_group_name"].dropna().unique()
 
     for group_name in unique_groups:
@@ -86,35 +87,61 @@ def store_group_breakdown(df: pd.DataFrame, db: Session) -> int:
             db.add(product_group)
             records_inserted += 1
 
-    db.commit()
-
-    current_group = None
+    db.commit()  # Commit product groups first
+    
+    # Now store forecasted production data
     for _, row in df.iterrows():
-        # Update current group if we have a new one
-        if pd.notna(row.get("product_group_name")):
-            current_group = str(row["product_group_name"])
-
-        if pd.notna(row.get("grade_name")) and current_group:
-            # Find the product group
-            product_group = (
-                db.query(schema.ProductGroup)
-                .filter(schema.ProductGroup.name == current_group)
+        if pd.isna(row["product_group_name"]) or pd.isna(row["date"]) or pd.isna(row["heats"]):
+            continue
+            
+        # Find the product group
+        product_group = (
+            db.query(schema.ProductGroup)
+            .filter(schema.ProductGroup.name == str(row["product_group_name"]))
+            .first()
+        )
+        
+        if product_group:
+            steel_grade = (
+                db.query(schema.SteelGrade)
+                .filter(schema.SteelGrade.name == str(row["product_group_name"]))
                 .first()
             )
-
-            if product_group:
-                existing_grade = (
-                    db.query(schema.SteelGrade)
-                    .filter(schema.SteelGrade.name == str(row["grade_name"]))
-                    .first()
+            
+            if not steel_grade:
+                steel_grade = schema.SteelGrade(
+                    name=str(row["product_group_name"]),
+                    product_group_id=product_group.id
                 )
-
-                if not existing_grade:
-                    steel_grade = schema.SteelGrade(
-                        name=str(row["grade_name"]), product_group_id=product_group.id
-                    )
-                    db.add(steel_grade)
-                    records_inserted += 1
+                db.add(steel_grade)
+                db.commit()
+                db.refresh(steel_grade)
+            
+            # Convert date if needed
+            forecast_date = (
+                pd.to_datetime(row["date"]).date()
+                if isinstance(row["date"], str)
+                else row["date"]
+            )
+            
+            # Check if forecasted production record already exists
+            existing_forecast = (
+                db.query(schema.ForecastedProduction)
+                .filter(
+                    schema.ForecastedProduction.date == forecast_date,
+                    schema.ForecastedProduction.product_group_id == product_group.id,
+                )
+                .first()
+            )
+            
+            if not existing_forecast:
+                forecasted_production = schema.ForecastedProduction(
+                    date=forecast_date,
+                    heats=int(row["heats"]) if not pd.isna(row["heats"]) else 0,
+                    product_group_id=product_group.id
+                )
+                db.add(forecasted_production)
+                records_inserted += 1
 
     db.commit()
     return records_inserted
@@ -185,25 +212,40 @@ def get_historical_production(
     return query.offset(skip).limit(limit).all()
 
 
-def get_forecasted_production(
-    db: Session,
-    grade_id: Optional[int] = None,
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
-    skip: int = 0,
-    limit: int = 100,
-) -> List[schema.ForecastedProduction]:
-    """Get forecasted production with optional filters."""
+def get_forecasted_production(db: Session, product_group_id: Optional[int] = None) -> List[schema.ForecastedProduction]:
+    """
+    Get forecasted production data, optionally filtered by product group.
+
+    Args:
+        db (Session): Database session
+        product_group_id (Optional[int]): Filter by specific product group ID
+
+    Returns:
+        List[schema.ForecastedProduction]: List of forecasted production records
+    """
     query = db.query(schema.ForecastedProduction)
+    
+    if product_group_id:
+        query = query.filter(schema.ForecastedProduction.product_group_id == product_group_id)
+    
+    return query.all()
 
-    if grade_id:
-        query = query.filter(schema.ForecastedProduction.grade_id == grade_id)
-    if start_date:
-        query = query.filter(schema.ForecastedProduction.date >= start_date)
-    if end_date:
-        query = query.filter(schema.ForecastedProduction.date <= end_date)
 
-    return query.offset(skip).limit(limit).all()
+def get_forecasted_production(
+    db: Session
+) -> List[schema.ForecastedProduction]:
+    """
+    Get ForecastedProduction table
+
+    Args:
+        db (Session): Database session
+
+    Returns:
+        List[schema.ForecastedProduction]: List of forecasted production records
+    """
+    return (
+        db.query(schema.ForecastedProduction).all()
+    )
 
 
 def get_daily_schedule(

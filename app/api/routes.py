@@ -109,18 +109,14 @@ def upload_production_history(
     file: UploadFile = File(...), db: Session = Depends(get_db)
 ):
     """
-    ## Upload Historical Production Data
+    ## Upload steel_grade_production file
 
-    Import historical production records from Excel/CSV files for forecasting analysis.
-
-    **Accepted Formats:** `.xlsx`, `.xls`, `.csv` with the column name of example files
+    **Accepted Formats:** `.xlsx`, `.xls`, `.csv`
 
     **Data Processing:**
     - Automatically detects wide vs. long format data
     - Converts dates to proper format
     - Validates steel grades against existing database records
-
-    **Note:** Upload product groups first to ensure steel grades exist in the database.
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
         return create_error_response(
@@ -206,20 +202,11 @@ def upload_production_history(
 @router.post("/upload/product-groups", tags=["data-upload"])
 def upload_product_groups(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
-    ## Upload Product Groups & Steel Grade Classifications
-
-    Establish the foundation data structure for your steel plant operations.
+    ## Upload product_groups_monthly file
 
     **Accepted Formats:** `.xlsx`, `.xls`, `.csv`
 
-    **Expected Columns:** `product_group_name`, `grade_name`
-
-    **Creates:**
-    - Product group categories (e.g., Rebar, MBQ, SBQ, CHQ)
-    - Steel grade classifications (e.g., B500A, A36, 4140, 1010)
-    - Relationships between groups and grades
-
-    **Important:** Upload this data first before uploading production history or schedules.
+    **Creates:** ProductGroup table and ForecastedProduction (if not exists) 
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
         return create_error_response(
@@ -231,20 +218,12 @@ def upload_product_groups(file: UploadFile = File(...), db: Session = Depends(ge
     try:
         df = preprocess.sheet_to_pandas(file)
 
-        if "Quality:" in df.columns:
-            df_transformed = pd.DataFrame(
-                {
-                    "product_group_name": df["Quality:"],
-                    "grade_name": df["Quality:"],  # For now, use same as product group
-                }
-            )
-        else:
-            # Assume it's already in the correct format
-            df_transformed = df
+        df_transformed = df.melt(id_vars='Quality:', var_name='date', value_name='heats')
+        df_transformed = df_transformed.rename(columns={"Quality:": "product_group_name"})
 
-        records = crud.store_group_breakdown(df_transformed, db)
+        records = crud.store_product_groups(df_transformed, db)
         return {
-            "message": f"Product group breakdown uploaded successfully. {records} records inserted."
+            "message": f"Product groups and forecasted production uploaded successfully. {records} records inserted."
         }
     except Exception as e:
         return create_error_response(
@@ -317,4 +296,25 @@ def get_steel_grades(skip: int = 0, limit: int = 100, db: Session = Depends(get_
     return [
         {"id": g.id, "name": g.name, "product_group_id": g.product_group_id}
         for g in grades
+    ]
+
+
+@router.get("/forecasted-production", tags=["reference"])
+def get_forecasted_production(db: Session = Depends(get_db)):
+    """
+    Get all forecasted production data
+    
+    Retrieve all forecasted production records from the ForecastedProduction table.
+    Returns date, heats, and associated product group information.
+    """
+    forecasted_data = crud.get_forecasted_production(db)
+    return [
+        {
+            "id": f.id,
+            "date": f.date,
+            "heats": f.heats,
+            "product_group_id": f.product_group_id,
+            "product_group_name": f.product_group.name if f.product_group else None
+        }
+        for f in forecasted_data
     ]

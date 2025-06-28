@@ -36,9 +36,9 @@ class ForecastedProduction(Base):
     id = Column(Integer, primary_key=True)
     date = Column(Date, nullable=False)  # Day or month for forecast
     heats = Column(Integer, nullable=False)  # Number of heats forecasted
-    grade_id = Column(Integer, ForeignKey("steel_grades.id"), nullable=False)
+    product_group_id = Column(Integer, ForeignKey("product_groups.id"), nullable=False)
 
-    grade = relationship("SteelGrade", backref="forecasted_production")
+    product_group = relationship("ProductGroup", backref="forecasted_production")
 
 
 class DailyProductionSchedule(Base):

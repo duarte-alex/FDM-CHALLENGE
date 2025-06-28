@@ -17,7 +17,6 @@ class ForecastOutput(BaseModel):
     grade_name: str
     forecast_date: date
     predicted_tons: float
-    confidence_score: float
     linear_fit: Optional[LinearFitData] = None
     historical_data_points: int
 

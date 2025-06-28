@@ -196,7 +196,7 @@ erDiagram
         int id PK
         date date
         int heats
-        int grade_id FK
+        int product_group_id FK
     }
     
     DailyProductionSchedule {
@@ -262,6 +262,7 @@ erDiagram
 | POST | `/upload/daily-schedule` | Upload daily production schedules |
 | GET | `/product-groups` | Get all product groups |
 | GET | `/steel-grades` | Get all steel grades with pagination |
+| GET | `/forecasted-production` | Get all forecasted production data with heats by date |
 
 ## Unit Tests
 
