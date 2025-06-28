@@ -8,6 +8,8 @@ openpyxl
 python-multipart
 black
 pytest
+httpx
+pytest-asyncio
 matplotlib
 scipy
 numpy
