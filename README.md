@@ -53,7 +53,7 @@ FDM-CHALLENGE/
 
 ### **Forecasting Engine**
 - **Linear Regression Model**: Achieves near-perfect correlation (R ≈ 1) for production predictions
-- **Real-Time Predictions**: RESTful endpoint for generating forecasts for any month
+- **Real-Time Predictions**: RESTful endpoint for generating forecasts for any month for which there is a prediction
 
 ### **Robust Data Processing Pipeline**
 - **Multi-Format Data Ingestion**: Seamlessly processes non-tabular data and Excel (.xlsx, .xls) and CSV files

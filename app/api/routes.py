@@ -82,32 +82,68 @@ def upload_production_history(
             status_code=400, detail="Only CSV or Excel files are supported"
         )
 
-    df = preprocess.sheet_to_pandas(file)
-    
-    # Transform the data if needed
-    # Check if this is the wide format with 'Quality:' column and date columns
-    date_columns = [col for col in df.columns if '2024' in str(col) or '2023' in str(col) or '2025' in str(col)]
-    
-    if date_columns and 'Quality:' in df.columns:
-        # This is wide format - transform it to long format
-        df_long = df.melt(
-            id_vars=['Quality:'], 
-            value_vars=date_columns,
-            var_name='date', 
-            value_name='tons'
+    try:
+        df = preprocess.sheet_to_pandas(file)
+        
+        date_columns = [col for col in df.columns if '2024' in str(col) or '2023' in str(col) or '2025' in str(col)]
+        
+        if date_columns and 'Quality:' in df.columns:
+            # This is wide format - transform it to long format
+            df_long = df.melt(
+                id_vars=['Quality:'], 
+                value_vars=date_columns,
+                var_name='date', 
+                value_name='tons'
+            )
+            # Rename Quality: to grade_name
+            df_long = df_long.rename(columns={'Quality:': 'grade_name'})
+            # Convert date column to proper datetime
+            df_long['date'] = pd.to_datetime(df_long['date']).dt.date
+        else:
+            # Already in correct format
+            df_long = df
+        
+        # Debug: Check the DataFrame structure
+        if df_long.empty:
+            raise HTTPException(status_code=400, detail="DataFrame is empty after processing")
+        
+        # Debug: Check required columns
+        required_cols = ['date', 'grade_name', 'tons']
+        missing_cols = [col for col in required_cols if col not in df_long.columns]
+        if missing_cols:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Missing required columns: {missing_cols}. Available columns: {list(df_long.columns)}"
+            )
+        
+        # Debug: Check for data in required columns
+        if df_long['grade_name'].isna().all():
+            raise HTTPException(status_code=400, detail="All grade_name values are null/empty")
+        
+        if df_long['tons'].isna().all():
+            raise HTTPException(status_code=400, detail="All tons values are null/empty")
+        
+        records = crud.store_production_history(df_long, db)
+        
+        if records == 0:
+            # Get some sample data for debugging
+            sample_grades = df_long['grade_name'].unique()[:5]
+            existing_grades = crud.get_steel_grades(db, limit=100)
+            existing_grade_names = [g.name for g in existing_grades]
+            
+            raise HTTPException(
+                status_code=400, 
+                detail=f"No records inserted. Sample grades from file: {list(sample_grades)}. Existing grades in DB: {existing_grade_names[:10]}"
+            )
+        
+        return {
+            "message": f"Production history uploaded successfully. {records} records inserted."
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error processing file: {str(e)}"
         )
-        # Rename Quality: to grade_name
-        df_long = df_long.rename(columns={'Quality:': 'grade_name'})
-        # Convert date column to proper datetime
-        df_long['date'] = pd.to_datetime(df_long['date']).dt.date
-    else:
-        # Already in correct format
-        df_long = df
-    
-    records = crud.store_production_history(df_long, db)
-    return {
-        "message": f"Production history uploaded successfully. {records} records inserted."
-    }
 
 
 @router.post("/upload/product-groups")

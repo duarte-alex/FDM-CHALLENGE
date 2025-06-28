@@ -70,7 +70,7 @@ def store_group_breakdown(df: pd.DataFrame, db: Session) -> int:
     """
     records_inserted = 0
 
-    # First, insert unique product groups
+    # insert unique product groups
     unique_groups = df["product_group_name"].dropna().unique()
 
     for group_name in unique_groups:
@@ -87,7 +87,6 @@ def store_group_breakdown(df: pd.DataFrame, db: Session) -> int:
 
     db.commit()
 
-    # Then, insert steel grades
     current_group = None
     for _, row in df.iterrows():
         # Update current group if we have a new one
