@@ -52,7 +52,7 @@ FDM-CHALLENGE/
 - **Interactive Documentation**: Auto-generated OpenAPI docs at `/docs` for easy API exploration
 
 ### **Forecasting Engine**
-- **Linear Regression Model**: Achieves near-perfect correlation (R ≈ 1) for production predictions
+- **Linear Regression Model**: Perfect correlation for group production predictions, scalable implementation and uncertainty discussion
 - **Real-Time Predictions**: RESTful endpoint for generating forecasts for any month for which there is a prediction
 
 ### **Robust Data Processing Pipeline**
@@ -70,18 +70,23 @@ FDM-CHALLENGE/
 
 ## Forecasting logic
 
-The forecasting endpoint, runs a linear fit based on historical data
-For the data provided the linear fit coefficients ($A_{fit}$ and $B_{fit}$) were obtained with correlation coefficient $R \approx 1$. The formula used in the prediction API is:
+The forecasting endpoint, runs a linear fit based on historical data relating x: production per quality group (short tons) and y: number of heats forecasted for quality group. For the data provided the linear fit coefficients ($A_{fit}$ and $B_{fit}$) were obtained with correlation coefficient $R \approx 1$.
 
 <p>
-P<sub>Predicted Grade</sub> = (A<sub>fit</sub> × X<sub>product forecast</sub> + B<sub>fit</sub>) × G<sub>Grade % average</sub> (units: short tons)
+P<sub>group</sub> = (A<sub>fit</sub> × X<sub>group forecast</sub> + B<sub>fit</sub>)</sub>
 </p>
 
-
-
 - **interpretability**: results for a linear regression are easy to communicate to client increasing their trust
+- **$R \approx 1$**: plotted in ```forecast_logic.ipynb```
 
-- **$R \approx 1$**: near perfect historical correlation plotted in ```forecast_logic.ipynb```
+By multiplying the total number predicted heats for the quality group, $P_{group}$, by expected percetange of each Grade in the Group, $G_{Grade \% average}$, I can return forecast data in a format ScrapCheft accepts.
+
+<p>
+P<sub>grade</sub> = P<sub>group</sub> ×  G<sub>Grade % average</sub>
+</p>
+
+In ```forecast_logic.ipynb``` for each Grade the uncertainty (| mean - max deviation|) is calculated. This value can be quite high and is important to understand the strenght of the predictions for each Grade which varies significantly.
+
 
 ## Running the API
 
@@ -235,25 +240,7 @@ erDiagram
    - View product groups: `GET /product-groups`
    - View steel grades: `GET /steel-grades`
    - Generate forecasts: `POST /forecast`
-   - Alternatively use curl e.g. ```curl -X GET "http://localhost:8000/"```
-
-Alternatively, 
-
-### **Demo Data Generator**
-
-For easy testing and evaluation, use the included demo data generator:
-
-```bash
-python generate_demo_data.py
-```
-
-This creates realistic sample data in `demo_data/` directory:
-- **product_groups_demo.csv**: Product groups and steel grade relationships
-- **historical_production_demo.csv**: 2 years of historical production data
-- **forecasted_production_demo.csv**: 6 months of forecasted production
-- **daily_schedule_demo.csv**: 30 days of production schedules
-
-Upload these files via the API endpoints to quickly populate the database for testing.
+   - Use ```http://localhost:8000/docs``` or alternatively curl e.g. ```curl -X GET "http://localhost:8000/"```
 
 ### **API Endpoints**
 
