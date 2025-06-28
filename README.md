@@ -4,15 +4,19 @@ In this repository a simple API and database schema are implemented for a steel 
 
 ## Repository Structure
 
+```
 FDM-CHALLENGE/
 │
 ├── app/
 │   ├── __init__.py
-│   ├── main.py              
-│   ├── database.py           
-│   ├── models.py              
-│   ├── schemas.py           
-│   ├── logic.py             
+│   ├── main.py      
+│   ├── crud.py          
+│   ├── database.py   
+│   │         
+│   └── models/
+│   │   ├── pydantic.py
+│   │   └── schema.py      
+│   │             
 │   └── api/
 │       ├── __init__.py
 │       └── routes.py          
@@ -23,77 +27,86 @@ FDM-CHALLENGE/
 │   ├── steel_grade_production.xlsx
 │   └── /processed                     
 │
-├── example.py
-│
 ├── .github/workflows
 ├── README.md
 └──  requirements.txt
+```
 
 ## Project Highlights
 
-- utility/: modular helper functions for preprocessing, plotting and fitting .csv, .xlsx and .xls
-- .github/workflows: github actions to ensure code compliant with black formatting
-- app/schema.py: used sql alchemy to define schemas in accordance with project description and goals
+### **Production-Ready Steel Plant API**
+- **FastAPI + PostgreSQL**: Modern, high-performance API with robust database integration
+- **Dockerized Deployment**: One-command setup with `docker-compose up --build`
+- **Interactive Documentation**: Auto-generated OpenAPI docs at `/docs` for easy API exploration
 
-### Prediction Formula
+### **Forecasting Engine**
+- **Linear Regression Model**: Achieves near-perfect correlation (R ≈ 1) for production predictions
+- **Real-Time Predictions**: RESTful endpoint for generating forecasts for any month
 
+### **Robust Data Processing Pipeline**
+- **Multi-Format Data Ingestion**: Seamlessly processes non-tabular data and Excel (.xlsx, .xls) and CSV files
+- **Flexible File Uploads**: API endpoints for uploading production history, quality forecasts, and product breakdowns
+- **Data Validation**: Pydantic models ensure data integrity throughout the pipeline
+
+### **API Design**
+- **Modular Design**
+- **Pydantic Models**
+- **Comprehensive CRUD Operations**
+- **Scalable Schema**
+
+### **Quality Assurance**
+- **Automated Testing**: unittest pytest-based test suite 
+- **CI/CD Pipeline**: GitHub Actions ensuring code quality with Black formatting
+
+## Forecasting logic
+
+The forecasting endpoint, runs a linear fit based on historical data
 For the data provided the linear fit coefficients ($A_{fit}$ and $B_{fit}$) were obtained with correlation coefficient $R \approx 1$. The formula used in the prediction API is:
 
-$
-P_{Predicted Grade} = (A_{fit} \times X_{product forecast} + B_{fit}) \times G_{Grade \% average} (units: short tons)
-$
-There aren't enough data points and variables for any complex AI predictive models. The best way to define our forecast logic is by using a linear regression. It's advantages are:
+<p>
+P<sub>Predicted Grade</sub> = (A<sub>fit</sub> × X<sub>product forecast</sub> + B<sub>fit</sub>) × G<sub>Grade % average</sub> (units: short tons)
+</p>
 
-- **interpretability**: results for a linear regression are easy to communicate to client improving their trust and thus model aceptance
 
-- **$R \approx 1$**: there is a near perfect positive linear correlation 
 
-## Local project set up
+- **interpretability**: results for a linear regression are easy to communicate to client increasing their trust
 
-### UV
+- **$R \approx 1$**: near perfect historical correlation plotted in ```forecast_logic.ipynb```
 
-1) The recommendable way to install the dependencies is using **uv** (python +3.8):
+## Running the API
+
+### Using Docker (Recommended)
+
+The easiest way to run the project is using Docker, which automatically sets up both the application and PostgreSQL database. Assuming docker and docker compose have been installed on your system, the project can be set up with a single line:
+
+```bash
+docker-compose up --build
+```
+
+### Locally (Harder set up)
+
+#### Install dependencies
+1) The recommendable way to install the dependencies is using **uv**:
 
 ```
 pip install uv
 uv pip install -r requirements.txt
 ```
 
-When running a script use:
-
-```
-uv venv exec python main.py
-```
-
-### Virtual environments
 2) It is also possible to use virtual environment **venv**:
 
-Create virtual environment:
 ```
 python -m venv fdm-challenge
-```
-
-Activate virtual environment:
-
-```
 source fdm-challenge/bin/activate
 ```
 
-### Database set up
+#### Database commands
 
-In this project, I use PostgreSQL because it gives you reliable structure, strong querying, and flexibility. It can be installed with:
-
+When running locally since we are not using docker we need to install postgres:
 ```
 sudo apt install postgresql postgresql-contrib
 ```
-
-In ``database.py``` the postgres url for database connection is:
-
-```
-POSTGRES_URL = "postgresql://steel:steel@localhost:5432/steel_db"
-```
-
-This assumes a database and user of the following type has been set up. To create locally a database and user, fist open PostgreSQL interactive shell (psql): ```sudo -u postgres psql```. Next, run the following code:
+Then open the PostgreSQL interactive shell (psql): ```sudo -u postgres psql``` and create the database and users:
 
 ```
 CREATE DATABASE steel_db;
@@ -102,14 +115,20 @@ GRANT ALL PRIVILEGES ON DATABASE steel_db TO steel;
 \q
 ```
 
+Next, intialize the tables and grant permissions:
+```
 sudo -u postgres psql -d steel_db -f init.sql
+```
 
-## Docker Setup
+You can check the tables were creating by running in psql:
+```
+SELECT table_name FROM information_schema.tables 
+WHERE table_schema = 'public';
+```
 
-The easiest way to run the project is using Docker, which automatically sets up both the application and PostgreSQL database. In this tutorial we assume you docker and docker compose have been installed on your system.
-
-```bash
-docker-compose up --build
+The API can be reached with:
+```
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ## Database Schema
@@ -123,29 +142,59 @@ The database schema is designed to model a steel plant's production workflow wit
 ProductGroup (id, name)
 SteelGrade (id, name, product_group_id)
 
--- Production data
+-- Production data: corresponding to data files
 HistoricalProduction (id, date, tons, grade_id)
 ForecastedProduction (id, date, heats, grade_id)
 DailyProductionSchedule (id, date, start_time, mould_size, grade_id)
 ```
 
-### **Entity Relationships**
+### **Entity Relationship Diagram**
 
-1. **ProductGroup** → **SteelGrade** (One-to-Many)
-   - Each product group (e.g., "Rebar", "MBQ") contains multiple steel grades
-   - Examples: Rebar group contains B500A, B500B, B500C grades
+```mermaid
+erDiagram
+    ProductGroup {
+        int id PK
+        string name UK
+    }
+    
+    SteelGrade {
+        int id PK
+        string name UK
+        int product_group_id FK
+    }
+    
+    HistoricalProduction {
+        int id PK
+        date date
+        int tons
+        int grade_id FK
+    }
+    
+    ForecastedProduction {
+        int id PK
+        date date
+        int heats
+        int grade_id FK
+    }
+    
+    DailyProductionSchedule {
+        int id PK
+        date date
+        string start_time
+        string mould_size
+        int grade_id FK
+    }
+    
+   ProductGroup ||--o{ SteelGrade : "contains"
+   SteelGrade ||--o{ HistoricalProduction : "produces"
+   SteelGrade ||--o{ ForecastedProduction : "forecasts"
+   SteelGrade ||--o{ DailyProductionSchedule : "schedules"
+```
 
-2. **SteelGrade** → **HistoricalProduction** (One-to-Many)
-   - Each steel grade has multiple historical production records
-   - Tracks tons produced by date for each grade
-
-3. **SteelGrade** → **ForecastedProduction** (One-to-Many)
-   - Each steel grade has forecasted production data
-   - Tracks planned heats by date for each grade
-
-4. **SteelGrade** → **DailyProductionSchedule** (One-to-Many)
-   - Each steel grade appears in daily production schedules
-   - Tracks start times and mould sizes for each grade
+**Relationship Legend:**
+- `||--o{` = One-to-Many relationship
+- `||--||` = One-to-One relationship  
+- `}o--o{` = Many-to-Many relationship
 
 ### **Schema Details**
 
@@ -193,3 +242,84 @@ DailyProductionSchedule (id, date, start_time, mould_size, grade_id)
 2. **Historical Analysis**: Historical production data is analyzed using linear regression
 3. **Forecasting**: Predictions are generated and stored in ForecastedProduction
 4. **Scheduling**: Daily schedules are created based on forecasts and requirements
+
+## Getting Started
+
+### **Quick Demo (Recommended for Evaluation)**
+
+1. **Start the application:**
+   ```bash
+   docker-compose up --build
+   ```
+
+2. **Generate demo data:**
+   ```bash
+   python scripts/generate_demo_data.py
+   ```
+
+3. **Access the API:**
+   - **Interactive Docs**: http://localhost:8000/docs
+   - **API Root**: http://localhost:8000
+
+4. **Test the workflow:**
+   - Upload `demo_product_groups.csv` via `/upload/group-breakdown`
+   - Upload `demo_historical_production.csv` via `/upload/production-history`
+   - Upload `demo_quality_forecast.csv` via `/upload/quality-forecast`
+   - Test forecasting via `/forecast` endpoint
+   - View production summaries via `/production-summary/{grade_id}`
+
+### **API Endpoints**
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | API information and available endpoints |
+| GET | `/docs` | Interactive API documentation |
+| POST | `/forecast` | Generate production forecasts using linear regression |
+| POST | `/upload/quality-forecast` | Upload forecasted production data |
+| POST | `/upload/production-history` | Upload historical production data |
+| POST | `/upload/group-breakdown` | Upload product groups and steel grades |
+| GET | `/product-groups` | Get all product groups |
+| GET | `/steel-grades` | Get all steel grades with pagination |
+| GET | `/production-summary/{grade_id}` | Get production summary for specific grade |
+
+### **Example API Usage**
+
+```bash
+# Get all product groups
+curl -X GET "http://localhost:8000/product-groups"
+
+# Get production summary for grade ID 1
+curl -X GET "http://localhost:8000/production-summary/1"
+
+# Upload a file (use the interactive docs for easier file uploads)
+curl -X POST "http://localhost:8000/upload/production-history" \
+     -H "Content-Type: multipart/form-data" \
+     -F "file=@demo_historical_production.csv"
+```
+
+## Unit Tests
+
+The project includes a comprehensive test suite to ensure API reliability and functionality. The tests validate core endpoints, data processing, and business logic.
+
+### **Test Suite Coverage**
+
+- **API Endpoints**: Root, health check, and documentation accessibility
+- **Data Operations**: Product groups and steel grades retrieval
+- **File Processing**: Upload validation and error handling
+- **Forecasting Logic**: Request/response structure and prediction algorithms
+
+### **Purpose**
+
+The test suite serves multiple purposes:
+- **Quality Assurance**: Ensures all endpoints function correctly
+- **Regression Testing**: Prevents breaking changes during development
+- **Documentation**: Demonstrates expected API behavior and usage patterns
+- **Validation**: Confirms data integrity and error handling
+
+### **Running Tests**
+
+```bash
+pytest tests/
+```
+
+The tests use FastAPI's TestClient for isolated testing without affecting production data.
