@@ -215,34 +215,36 @@ erDiagram
 
 ## Getting Started
 
-### **Quick Demo (Recommended for Evaluation)**
-
 1. **Start the application:**
+   - If using docker run the following line but if running locally follow the instructions above.
    ```bash
    docker-compose up --build
    ```
 
-2. **Generate demo data:**
-   ```bash
-   python scripts/generate_demo_data.py
-   ```
-
-3. **Access the API:**
+2. **Access the API:**
    - **Interactive Docs**: http://localhost:8000/docs
    - **API Root**: http://localhost:8000
 
-4. **Test the workflow:**
-   - Upload `demo_product_groups.csv` via `/upload/group-breakdown`
-   - Upload `demo_historical_production.csv` via `/upload/production-history`
-   - Upload `demo_quality_forecast.csv` via `/upload/quality-forecast`
-   - Test forecasting via `/forecast` endpoint
-   - View production summaries via `/production-summary/{grade_id}`
+3. **Upload data to populate the database:**
+   - Use the interactive docs at `/docs` to upload your Excel/CSV files
+   - Upload product groups via `/upload/group-breakdown`
+   - Upload historical production via `/upload/production-history`
+   - Upload forecast data via `/upload/quality-forecast`
+
+4. **Test the endpoints:**
+   - View product groups: `GET /product-groups`
+   - View steel grades: `GET /steel-grades`
+   - Generate forecasts: `POST /forecast`
+   - Alternatively use curl e.g. ```curl -X GET "http://localhost:8000/"```
+
+Alternatively, 
 
 ### **API Endpoints**
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/` | API information and available endpoints |
+| GET | `/health` | Health check endpoint for monitoring |
 | GET | `/docs` | Interactive API documentation |
 | POST | `/forecast` | Generate production forecasts using linear regression |
 | POST | `/upload/quality-forecast` | Upload forecasted production data |
@@ -251,21 +253,6 @@ erDiagram
 | GET | `/product-groups` | Get all product groups |
 | GET | `/steel-grades` | Get all steel grades with pagination |
 | GET | `/production-summary/{grade_id}` | Get production summary for specific grade |
-
-### **Example API Usage**
-
-```bash
-# Get all product groups
-curl -X GET "http://localhost:8000/product-groups"
-
-# Get production summary for grade ID 1
-curl -X GET "http://localhost:8000/production-summary/1"
-
-# Upload a file (use the interactive docs for easier file uploads)
-curl -X POST "http://localhost:8000/upload/production-history" \
-     -H "Content-Type: multipart/form-data" \
-     -F "file=@demo_historical_production.csv"
-```
 
 ## Unit Tests
 
