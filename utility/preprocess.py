@@ -101,14 +101,10 @@ def sheet_to_pandas(file: UploadFile, skip=1) -> pd.DataFrame:
         )
 
     elif ext == ".xls":
-        return pd.read_excel(
-            BytesIO(file.file.read()), engine="xlrd", skiprows=skip
-        )
+        return pd.read_excel(BytesIO(file.file.read()), engine="xlrd", skiprows=skip)
 
     elif ext == ".csv":
-        return pd.read_csv(
-            BytesIO(file.file.read()), encoding="utf-8", skiprows=skip
-        )
+        return pd.read_csv(BytesIO(file.file.read()), encoding="utf-8", skiprows=skip)
 
     else:
         raise ValueError(f"Unsupported file format: {ext}")
