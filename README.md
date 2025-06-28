@@ -1,6 +1,6 @@
 # FDM-CHALLENGE
 
-In this repository a simple API and database schema are implemented for a steel plant's production plans.
+In this repository an API and database schema are implemented for a steel plant's production plans.
 
 ## Repository Structure
 
@@ -70,7 +70,11 @@ FDM-CHALLENGE/
 
 ## Forecasting logic
 
-The forecasting endpoint, runs a linear fit based on historical data relating x: production per quality group (short tons) and y: number of heats forecasted for quality group. For the data provided the linear fit coefficients ($A_{fit}$ and $B_{fit}$) were obtained with correlation coefficient $R \approx 1$.
+The forecasting endpoint, runs a linear fit based on historical data where
+- x: production per quality group (short tons)
+- y: number of heats forecasted for quality group. 
+
+For the data provided the linear fit coefficients were obtained with correlation coefficient $R \approx 1$:
 
 <p>
 P<sub>group</sub> = (A<sub>fit</sub> × X<sub>group forecast</sub> + B<sub>fit</sub>)</sub>
@@ -79,7 +83,7 @@ P<sub>group</sub> = (A<sub>fit</sub> × X<sub>group forecast</sub> + B<sub>fit</
 - **interpretability**: results for a linear regression are easy to communicate to client increasing their trust
 - **$R \approx 1$**: plotted in ```forecast_logic.ipynb```
 
-By multiplying the total number predicted heats for the quality group, $P_{group}$, by expected percetange of each Grade in the Group, $G_{Grade \% average}$, I can return forecast data in a format ScrapCheft accepts.
+By multiplying the total number predicted heats for the quality group, $P_{group}$, by expected percetange of each Grade in the Group **given to the endpoint**, I can return forecast data in a format ScrapCheft accepts for the selected grades and the others **are set to 0 ensuring the sparsity observed in the dataset**.
 
 <p>
 P<sub>grade</sub> = P<sub>group</sub> ×  G<sub>Grade % average</sub>
@@ -101,18 +105,21 @@ docker-compose up --build
 ### Locally (Harder set up)
 
 #### Install dependencies
-1) The recommendable way to install the dependencies is using **uv**:
 
-```
-pip install uv
-uv pip install -r requirements.txt
-```
-
-2) It is also possible to use virtual environment **venv**:
-
-```
+Create and activate your virtual environment:
+```bash
 python -m venv fdm-challenge
 source fdm-challenge/bin/activate
+```
+
+I recommend the dependencies are installed with uv but pip can also be used:
+```bash
+# option 1
+pip install uv
+uv pip install -r requirements.txt
+
+# option 2
+pip install -r requirements.txt
 ```
 
 #### Database commands
@@ -255,7 +262,6 @@ erDiagram
 | POST | `/upload/daily-schedule` | Upload daily production schedules |
 | GET | `/product-groups` | Get all product groups |
 | GET | `/steel-grades` | Get all steel grades with pagination |
-| GET | `/production-summary/{grade_id}` | Get production summary for specific grade |
 
 ## Unit Tests
 

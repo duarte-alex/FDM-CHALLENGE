@@ -1,17 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import date
-from typing import Optional
-
-
-class SteelGradeResponse(BaseModel):
-    """Response model for steel grade data."""
-
-    id: int
-    name: str
-    product_group_id: int
-
-    class Config:
-        from_attributes = True
+from typing import Optional, List
 
 
 class LinearFitData(BaseModel):
@@ -39,3 +28,15 @@ class ErrorResponse(BaseModel):
     error: str
     detail: str
     timestamp: str
+
+
+class ForecastRequest(BaseModel):
+    """Request model for production forecast."""
+
+    grade_ids: List[str] = Field(..., description="List of steel grades to forecast")
+    forecast_days: str = Field(
+        default="September", description="Month to be forecasted"
+    )
+    include_linear_fit: bool = Field(
+        default=True, description="Include linear regression analysis in response"
+    )

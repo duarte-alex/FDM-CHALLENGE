@@ -21,9 +21,14 @@ def create_error_response(
     return JSONResponse(status_code=status_code, content=error_data.model_dump())
 
 
-@router.get("/")
+@router.get("/", tags=["root"])
 def root():
-    """Welcome endpoint for the Steel Production Forecast API."""
+    """
+    Welcome to the Steel Production Forecast API
+
+    This is the main entry point for the Steel Production Planning & Forecasting System.
+    Navigate to `/docs` for interactive API documentation.
+    """
     return {
         "message": "Steel Production Forecast API",
         "version": "1.0.0",
@@ -39,9 +44,18 @@ def root():
     }
 
 
-@router.get("/health")
+@router.get("/health", tags=["health"])
 def health_check(db: Session = Depends(get_db)):
-    """Health check endpoint for monitoring."""
+    """
+    ## System Health Check
+
+    Monitor the API and database connectivity status.
+
+    Returns system health information including:
+    - Database connection status
+    - Current data summary (product groups and steel grades count)
+    - System timestamp
+    """
     try:
         product_groups_count = len(crud.get_product_groups(db))
         steel_grades_count = len(crud.get_steel_grades(db, limit=1000))
@@ -63,28 +77,50 @@ def health_check(db: Session = Depends(get_db)):
         )
 
 
-@router.post("/forecast", response_model=pydantic.ForecastOutput)
+@router.post("/forecast", response_model=pydantic.ForecastOutput, tags=["forecasting"])
 def forecast_production(
     request: pydantic.ForecastRequest, db: Session = Depends(get_db)
 ):
     """
-    Generate production forecasts for September 2024.
+    ## Generate Production Forecasts
 
-    Uses linear regression and predicts September number of heats per quality group.
-    Uses historical grade average to compute number of heats per grade using regression prediction.
+    Advanced forecasting engine using linear regression analysis.
+
+    **Features:**
+    - Linear regression with correlation coefficient R ≈ 1
+    - Accepts a list of steel grade IDs to forecast
+
+    **Process:**
+    1. Predicts September's group production
+    2. Distributes heats based on historic distrubtion of specified grades
     """
-    return crud.compute_forecast(request, db)
+    try:
+        return crud.compute_forecast(request, db)
+    except Exception as e:
+        return create_error_response(
+            error="Service Unhealthy",
+            detail=f"Service unhealthy: {str(e)}",
+            status_code=503,
+        )
 
 
-@router.post("/upload/production-history")
+@router.post("/upload/production-history", tags=["data-upload"])
 def upload_production_history(
     file: UploadFile = File(...), db: Session = Depends(get_db)
 ):
     """
-    Upload historical production data from Excel/CSV files.
+    ## Upload Historical Production Data
 
-    Expected columns: date, grade_name, tons
-    Stores data in HistoricalProduction table for analysis and forecasting.
+    Import historical production records from Excel/CSV files for forecasting analysis.
+
+    **Accepted Formats:** `.xlsx`, `.xls`, `.csv` with the column name of example files
+
+    **Data Processing:**
+    - Automatically detects wide vs. long format data
+    - Converts dates to proper format
+    - Validates steel grades against existing database records
+
+    **Note:** Upload product groups first to ensure steel grades exist in the database.
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
         return create_error_response(
@@ -118,15 +154,6 @@ def upload_production_history(
             # Already in correct format
             df_long = df
 
-        # Debug: Check the DataFrame structure
-        if df_long.empty:
-            return create_error_response(
-                error="Empty DataFrame",
-                detail="DataFrame is empty after processing",
-                status_code=400,
-            )
-
-        # Debug: Check required columns
         required_cols = ["date", "grade_name", "tons"]
         missing_cols = [col for col in required_cols if col not in df_long.columns]
         if missing_cols:
@@ -176,13 +203,23 @@ def upload_production_history(
         )
 
 
-@router.post("/upload/product-groups")
+@router.post("/upload/product-groups", tags=["data-upload"])
 def upload_product_groups(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
-    Upload product groups file.
+    ## Upload Product Groups & Steel Grade Classifications
 
-    Expected columns: product_group_name, grade_name
-    Creates relationships between product groups (Rebar, MBQ, etc.) and steel grades (B500A, A36, etc.).
+    Establish the foundation data structure for your steel plant operations.
+
+    **Accepted Formats:** `.xlsx`, `.xls`, `.csv`
+
+    **Expected Columns:** `product_group_name`, `grade_name`
+
+    **Creates:**
+    - Product group categories (e.g., Rebar, MBQ, SBQ, CHQ)
+    - Steel grade classifications (e.g., B500A, A36, 4140, 1010)
+    - Relationships between groups and grades
+
+    **Important:** Upload this data first before uploading production history or schedules.
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
         return create_error_response(
@@ -217,13 +254,23 @@ def upload_product_groups(file: UploadFile = File(...), db: Session = Depends(ge
         )
 
 
-@router.post("/upload/daily-schedule")
+@router.post("/upload/daily-schedule", tags=["data-upload"])
 def upload_daily_schedule(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
-    Upload daily production schedule from Excel/CSV files.
+    ## Upload Daily Production Schedule
 
-    Expected columns: date, grade_name, start_time, mould_size
-    Stores data in DailyProductionSchedule table.
+    Import daily production schedules for operational planning.
+
+    **Accepted Formats:** `.xlsx`, `.xls`, `.csv`
+
+    **Expected Columns:** `date`, `grade_name`, `start_time`, `mould_size`
+
+    **Features:**
+    - Schedule production runs by date and time
+    - Track mould sizes for different steel grades
+    - Organize production workflow planning
+
+    **Note:** Ensure steel grades exist in the database before uploading schedules.
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
         return create_error_response(
@@ -246,29 +293,28 @@ def upload_daily_schedule(file: UploadFile = File(...), db: Session = Depends(ge
         )
 
 
-@router.get("/product-groups")
+@router.get("/product-groups", tags=["reference"])
 def get_product_groups(db: Session = Depends(get_db)):
-    """Get all product groups."""
+    """
+    Get all product groups
+
+    Retrieve a complete list of steel product group classifications
+    used for organizing and categorizing steel grades.
+    """
     groups = crud.get_product_groups(db)
     return [{"id": g.id, "name": g.name} for g in groups]
 
 
-@router.get("/steel-grades")
+@router.get("/steel-grades", tags=["reference"])
 def get_steel_grades(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """Get steel grades with pagination."""
+    """
+    Get steel grades with pagination
+
+    Retrieve steel grade definitions with their associated product groups.
+    Supports pagination for large datasets.
+    """
     grades = crud.get_steel_grades(db, skip=skip, limit=limit)
     return [
         {"id": g.id, "name": g.name, "product_group_id": g.product_group_id}
         for g in grades
     ]
-
-
-@router.get("/production-summary/{grade_id}")
-def get_production_summary(grade_id: int, db: Session = Depends(get_db)):
-    """
-    Get comprehensive production summary for a specific steel grade.
-
-    Returns historical production statistics, forecasted data, and total metrics
-    for the specified steel grade ID.
-    """
-    return crud.get_production_summary_by_grade(db, grade_id)

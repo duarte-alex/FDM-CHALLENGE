@@ -266,32 +266,6 @@ def store_daily_schedule(df: pd.DataFrame, db: Session) -> int:
     return records_inserted
 
 
-def get_production_summary_by_grade(db: Session, grade_id: int) -> dict:
-    """Get production summary for a specific steel grade."""
-    historical = (
-        db.query(schema.HistoricalProduction)
-        .filter(schema.HistoricalProduction.grade_id == grade_id)
-        .all()
-    )
-
-    forecasted = (
-        db.query(schema.ForecastedProduction)
-        .filter(schema.ForecastedProduction.grade_id == grade_id)
-        .all()
-    )
-
-    total_historical_tons = sum(h.tons for h in historical)
-    total_forecasted_heats = sum(f.heats for f in forecasted)
-
-    return {
-        "grade_id": grade_id,
-        "historical_records": len(historical),
-        "total_historical_tons": total_historical_tons,
-        "forecasted_records": len(forecasted),
-        "total_forecasted_heats": total_forecasted_heats,
-    }
-
-
 def calculate_production_forecast_with_linear_fit(db: Session, grade_id: int) -> dict:
     """
     Calculate production forecast using linear regression on historical data.
