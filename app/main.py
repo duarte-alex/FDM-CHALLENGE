@@ -13,7 +13,7 @@ A simple API and database schema implemented for a steel plant's production plan
 
 ### 📋 Getting Started
 
-1. **Upload Product Groups**: Use /upload/product-groups to upload product_groups_monthly
+1. **Upload Product Groups**: [FIRST STEP] Use /upload/product-groups to upload product_groups_monthly
 2. **Import Historical Data**: Use /upload/production-history to upload steel_grade_production.xslx
 3. **Schedule Production**: Use /upload/daily-schedule to upload daily_charge_schedule.xlsx
 4. **Generate Forecasts**: Use /forecast endpoint to predict September's production for selected steel grades

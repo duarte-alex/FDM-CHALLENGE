@@ -7,12 +7,12 @@ class ForecastOutput(BaseModel):
     """Response model for production forecast results - steel grade breakdown."""
 
     forecast_date: date = Field(
-        ..., description="Date for the forecast", example="2024-09-01"
+        ..., description="Date for the forecast", example="2024-09-24"
     )
     grade_breakdown: Dict[str, int] = Field(
         ...,
         description="Steel grade breakdown showing number of heats for each grade",
-        example={"B500A": 15, "B500B": 10, "B500C": 25, "A36": 8, "1010": 5},
+        example={"B500A": 58, "B500B": 58, "B500C": 116},
     )
 
 

@@ -30,7 +30,7 @@ def store_production_history(df: pd.DataFrame, db: Session) -> int:
                 .filter(schema.ProductGroup.name == str(row["product_group_id"]))
                 .first()
             )
-            
+
             if not product_group:
                 product_group = schema.ProductGroup(name=str(row["product_group_id"]))
                 db.add(product_group)
@@ -48,7 +48,7 @@ def store_production_history(df: pd.DataFrame, db: Session) -> int:
             # Create new steel grade
             steel_grade = schema.SteelGrade(
                 name=str(row["grade_name"]),
-                product_group_id=product_group.id if product_group else None
+                product_group_id=product_group.id if product_group else None,
             )
             db.add(steel_grade)
             db.commit()
@@ -182,12 +182,16 @@ def create_product_group(db: Session, name: str) -> schema.ProductGroup:
     return db_product_group
 
 
+def get_steel_grade_by_name(db: Session, name: str) -> Optional[schema.SteelGrade]:
+    """Get a steel grade by name."""
+    return db.query(schema.SteelGrade).filter(schema.SteelGrade.name == name).first()
+
+
 def get_steel_grades(
     db: Session, skip: int = 0, limit: int = 100
 ) -> List[schema.SteelGrade]:
     """Get steel grades with pagination."""
     return db.query(schema.SteelGrade).offset(skip).limit(limit).all()
-
 
 
 def create_steel_grade(
@@ -220,8 +224,6 @@ def get_historical_production(
         query = query.filter(schema.HistoricalProduction.date <= end_date)
 
     return query.offset(skip).limit(limit).all()
-
-
 
 
 def get_forecasted_production(db: Session) -> List[schema.ForecastedProduction]:
@@ -339,7 +341,7 @@ def compute_forecast(
 
     for grade_name, weight_percentage in request.grade_percentages.items():
         # Find which product group this grade belongs to
-        steel_grade = get_steel_grade(db, grade_name)
+        steel_grade = get_steel_grade_by_name(db, grade_name)
 
         if steel_grade and steel_grade.product_group:
             group_name = steel_grade.product_group.name

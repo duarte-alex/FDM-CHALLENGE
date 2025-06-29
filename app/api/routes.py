@@ -7,6 +7,7 @@ from ..models import pydantic
 import pandas as pd
 from utility import preprocess
 from datetime import datetime
+import glob
 
 router = APIRouter()
 
@@ -94,7 +95,7 @@ def forecast_production(
             detail=f"Service unhealthy: {str(e)}",
             status_code=503,
         )
-    
+
 
 @router.post(
     "/upload/product-groups",
@@ -107,7 +108,7 @@ def upload_product_groups(file: UploadFile = File(...), db: Session = Depends(ge
 
     **Accepted Formats:** `.xlsx`, `.xls`, `.csv`
 
-    **Creates:** ProductGroup table and ForecastedProduction (if not exists)
+    This function stores records on the ProductGroup table and ForecastedProduction (if not exists)
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
         return create_error_response(
@@ -150,7 +151,7 @@ def upload_production_history(
     """
     ## Upload steel_grade_production file
 
-    Upload product-groups first!
+    Upload product-groups first! This function stores records on HistoricalProduction table.
 
     **Accepted Formats:** `.xlsx`, `.xls`, `.csv`
     """
@@ -177,7 +178,6 @@ def upload_production_history(
         )
 
 
-
 @router.post(
     "/upload/daily-schedule",
     response_model=pydantic.UploadResponse,
@@ -188,6 +188,9 @@ def upload_daily_schedule(file: UploadFile = File(...), db: Session = Depends(ge
     ## Upload Daily Production Schedule
 
     **Accepted Formats:** `.xlsx`, `.xls`, `.csv`
+
+    This function processes non-tabular data with triplet format.
+    It stores records on the DailyProductionSchedule table.
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
         return create_error_response(
@@ -197,12 +200,45 @@ def upload_daily_schedule(file: UploadFile = File(...), db: Session = Depends(ge
         )
 
     try:
-        df = preprocess.sheet_to_pandas(file)
-        records = crud.store_daily_schedule(df, db)
+        # Process the non-tabular file and save CSV files
+        success = preprocess.handle_non_tabular(file)
+
+        if not success:
+            return create_error_response(
+                error="File Processing Error",
+                detail="Failed to process the daily schedule file",
+                status_code=500,
+            )
+
+        processed_files = glob.glob("data/processed/charge_schedule_*.csv")
+
+        total_records = 0
+        for csv_file in processed_files:
+            df = pd.read_csv(csv_file)
+            # Add date column based on filename
+            date_str = csv_file.split("_")[-1].replace(".csv", "")
+            df["date"] = date_str
+            # Rename columns to match expected format
+            df = df.rename(columns={"grade": "grade_name"})
+
+            # Clean up start_time to remove the 1900-01-01 date part
+            if "start_time" in df.columns:
+                df["start_time"] = df["start_time"].apply(
+                    lambda x: (
+                        pd.to_datetime(str(x)).strftime("%H:%M:%S")
+                        if pd.notna(x) and str(x) != "nan"
+                        else str(x)
+                    )
+                )
+
+            records = crud.store_daily_schedule(df, db)
+            total_records += records
+
         return pydantic.UploadResponse(
-            message=f"Daily schedule uploaded successfully. {records} records inserted.",
-            records_inserted=records,
+            message=f"Daily schedule uploaded successfully. {total_records} records inserted from {len(processed_files)} dates.",
+            records_inserted=total_records,
         )
+
     except Exception as e:
         return create_error_response(
             error="File Processing Error",

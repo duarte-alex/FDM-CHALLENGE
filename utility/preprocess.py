@@ -128,5 +128,7 @@ def process_steel_grade(
     df[col_name] = df[col_name].ffill()
     df = df.rename(columns={"Grade": "grade_name"})
     df = df.rename(columns={"Quality group": "product_group_id"})
-    df = df.melt(id_vars=["grade_name", "product_group_id"], var_name="date", value_name="tons")
+    df = df.melt(
+        id_vars=["grade_name", "product_group_id"], var_name="date", value_name="tons"
+    )
     return df
