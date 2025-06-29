@@ -11,12 +11,6 @@ app = FastAPI(
 
 A simple API and database schema implemented for a steel plant's production plans.
 
-### 🚀 Key Features
-
-* **Production Forecasting**: Linear regression with R ≈ 1
-* **Flexible APIs**: Predict only Grades of interest (others set to 0!)
-* **Data Ingestion**: Support for Excel (.xlsx, .xls) and CSV file uploads
-
 ### 📋 Getting Started
 
 1. **Upload Product Groups**: Use /upload/product-groups to upload product_groups_monthly

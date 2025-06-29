@@ -84,15 +84,7 @@ def forecast_production(
     """
     ## Generate Production Forecasts
 
-    Advanced forecasting engine using linear regression analysis.
-
-    **Features:**
-    - Linear regression with correlation coefficient R ≈ 1
-    - Accepts a list of steel grade IDs to forecast
-
-    **Process:**
-    1. Predicts September's group production
-    2. Distributes heats based on historic distrubtion of specified grades
+    User interface for generating production forecasts for specified steel grades.
     """
     try:
         return crud.compute_forecast(request, db)
@@ -104,7 +96,7 @@ def forecast_production(
         )
 
 
-@router.post("/upload/production-history", tags=["data-upload"])
+@router.post("/upload/production-history", response_model=pydantic.UploadResponse, tags=["data-upload"])
 def upload_production_history(
     file: UploadFile = File(...), db: Session = Depends(get_db)
 ):
@@ -188,9 +180,10 @@ def upload_production_history(
                 status_code=400,
             )
 
-        return {
-            "message": f"Production history uploaded successfully. {records} records inserted."
-        }
+        return pydantic.UploadResponse(
+            message=f"Production history uploaded successfully. {records} records inserted.",
+            records_inserted=records
+        )
     except Exception as e:
         return create_error_response(
             error="File Processing Error",
@@ -199,7 +192,7 @@ def upload_production_history(
         )
 
 
-@router.post("/upload/product-groups", tags=["data-upload"])
+@router.post("/upload/product-groups", response_model=pydantic.UploadResponse, tags=["data-upload"])
 def upload_product_groups(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
     ## Upload product_groups_monthly file
@@ -222,9 +215,10 @@ def upload_product_groups(file: UploadFile = File(...), db: Session = Depends(ge
         df_transformed = df_transformed.rename(columns={"Quality:": "product_group_name"})
 
         records = crud.store_product_groups(df_transformed, db)
-        return {
-            "message": f"Product groups and forecasted production uploaded successfully. {records} records inserted."
-        }
+        return pydantic.UploadResponse(
+            message=f"Product groups and forecasted production uploaded successfully. {records} records inserted.",
+            records_inserted=records
+        )
     except Exception as e:
         return create_error_response(
             error="File Processing Error",
@@ -233,7 +227,7 @@ def upload_product_groups(file: UploadFile = File(...), db: Session = Depends(ge
         )
 
 
-@router.post("/upload/daily-schedule", tags=["data-upload"])
+@router.post("/upload/daily-schedule", response_model=pydantic.UploadResponse, tags=["data-upload"])
 def upload_daily_schedule(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
     ## Upload Daily Production Schedule
@@ -261,9 +255,10 @@ def upload_daily_schedule(file: UploadFile = File(...), db: Session = Depends(ge
     try:
         df = preprocess.sheet_to_pandas(file)
         records = crud.store_daily_schedule(df, db)
-        return {
-            "message": f"Daily schedule uploaded successfully. {records} records inserted."
-        }
+        return pydantic.UploadResponse(
+            message=f"Daily schedule uploaded successfully. {records} records inserted.",
+            records_inserted=records
+        )
     except Exception as e:
         return create_error_response(
             error="File Processing Error",
@@ -317,4 +312,47 @@ def get_forecasted_production(db: Session = Depends(get_db)):
             "product_group_name": f.product_group.name if f.product_group else None
         }
         for f in forecasted_data
+    ]
+
+
+@router.get("/historical-production", tags=["reference"])
+def get_historical_production(db: Session = Depends(get_db)):
+    """
+    Get HistoricalProduction table.
+    
+    Retrieve all historical production records from the HistoricalProduction table.
+    Returns date, tons, and associated steel grade information.
+    """
+    historical_data = crud.get_historical_production(db, limit=1000)  # Get more records
+    return [
+        {
+            "id": h.id,
+            "date": h.date,
+            "tons": h.tons,
+            "grade_id": h.grade_id,
+            "grade_name": h.grade.name if h.grade else None
+        }
+        for h in historical_data
+    ]
+
+
+@router.get("/daily-schedules", tags=["reference"])
+def get_daily_schedules(db: Session = Depends(get_db)):
+    """
+    Get all daily production schedules
+    
+    Retrieve all daily production schedule records from the DailyProductionSchedule table.
+    Returns date, start time, mould size, and associated steel grade information.
+    """
+    schedule_data = crud.get_daily_schedule(db, limit=1000)  # Get more records
+    return [
+        {
+            "id": s.id,
+            "date": s.date,
+            "start_time": s.start_time,
+            "mould_size": s.mould_size,
+            "grade_id": s.grade_id,
+            "grade_name": s.grade.name if s.grade else None
+        }
+        for s in schedule_data
     ]

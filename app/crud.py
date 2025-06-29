@@ -1,7 +1,7 @@
 from utility.linear_fit import get_linear_fit
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import date, timedelta
+from datetime import date, datetime
 import pandas as pd
 from fastapi import HTTPException
 from .models import schema
@@ -354,45 +354,58 @@ def compute_forecast(
 ) -> pydantic.ForecastOutput:
     """
     Compute production forecast based on request parameters.
+    
+    Reads September forecasted heats from ForecastedProduction table for each product group,
+    then distributes heats to specific steel grades based on provided weights.
 
     Args:
-        request (ForecastRequest): Request parameters
+        request (ForecastRequest): Request parameters with grade percentages
         db (Session): Database session
 
     Returns:
-        ForecastOutput: Forecast results
+        ForecastOutput: Forecast results with steel grade breakdown
     """
 
-    # For now, return a properly structured response for the first grade_id
-    # This is a placeholder implementation that returns valid data structure
-    if not request.grade_ids:
-        raise HTTPException(status_code=400, detail="No grade IDs provided")
+    if not request.grade_percentages:
+        raise HTTPException(status_code=400, detail="No grade percentages provided")
 
-    grade_id = request.grade_ids[0]
-
-    # Get steel grade info
-    steel_grade = (
-        db.query(schema.SteelGrade).filter(schema.SteelGrade.id == grade_id).first()
-    )
-    if not steel_grade:
-        raise HTTPException(
-            status_code=404, detail=f"Steel grade with ID {grade_id} not found"
-        )
-
-    # Calculate forecast date
-    forecast_date = date.today() + timedelta(days=request.forecast_days)
-
-    # Placeholder linear fit data
-    linear_fit = None
-    if request.include_linear_fit:
-        linear_fit = pydantic.LinearFitData(slope=1.2, intercept=100.0)
+    # Set forecast date to September 2024 (or current year September)
+    forecast_date = date(2024, 9, 1)
+    
+    # Get forecasted production data for September from ForecastedProduction table
+    forecasted_data = get_forecasted_production(db)
+    
+    # Filter for September data and group by product group
+    september_heats_by_group = {}
+    for forecast in forecasted_data:
+        if forecast.date.month == 9 and forecast.date.year == 2024:
+            group_name = forecast.product_group.name if forecast.product_group else "Unknown"
+            if group_name not in september_heats_by_group:
+                september_heats_by_group[group_name] = 0
+            september_heats_by_group[group_name] += forecast.heats
+    
+    # Calculate heats breakdown based on grade weights
+    grade_breakdown = {}
+    total_heats = 0
+    
+    for grade_name, weight_percentage in request.grade_percentages.items():
+        # Find which product group this grade belongs to
+        steel_grade = get_steel_grade_by_name(db, grade_name)
+        
+        if steel_grade and steel_grade.product_group:
+            group_name = steel_grade.product_group.name
+            group_total_heats = september_heats_by_group.get(group_name, 0)
+            
+            # Calculate heats for this grade: group_heats * (weight / 100)
+            grade_heats = int(group_total_heats * (weight_percentage / 100))
+            grade_breakdown[grade_name] = grade_heats
+            total_heats += grade_heats
+        else:
+            # If grade not found in database, assign 0 heats
+            grade_breakdown[grade_name] = 0
 
     return pydantic.ForecastOutput(
-        grade_id=grade_id,
-        grade_name=steel_grade.name,
         forecast_date=forecast_date,
-        predicted_tons=250.5,
-        confidence_score=0.95,
-        linear_fit=linear_fit,
-        historical_data_points=12,
+        grade_breakdown=grade_breakdown,
+        total_heats=total_heats,
     )
