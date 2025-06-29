@@ -50,7 +50,7 @@ class UploadResponse(BaseModel):
     message: str = Field(
         ...,
         description="Success message describing the upload result",
-        example="Product groups and forecasted production uploaded successfully. 25 records inserted.",
+        example="Upload successful: 25 records inserted.",
     )
     records_inserted: int = Field(
         ...,

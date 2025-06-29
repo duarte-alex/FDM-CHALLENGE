@@ -1,4 +1,3 @@
-from utility.linear_fit import get_linear_fit
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date, datetime
@@ -11,9 +10,10 @@ from .models import pydantic
 def store_production_history(df: pd.DataFrame, db: Session) -> int:
     """
     Store historical production data from DataFrame into HistoricalProduction table.
+    Also creates SteelGrade and ProductGroup records if they don't exist.
 
     Args:
-        df (pd.DataFrame): DataFrame with columns: date, grade_name, tons
+        df (pd.DataFrame): DataFrame with columns: date, grade_name, tons, product_group_id
         db (Session): Database session
 
     Returns:
@@ -22,37 +22,61 @@ def store_production_history(df: pd.DataFrame, db: Session) -> int:
     records_inserted = 0
 
     for _, row in df.iterrows():
-        # Find the steel grade
+        # Find or create the product group if product_group_id exists
+        product_group = None
+        if "product_group_id" in row and pd.notna(row["product_group_id"]):
+            product_group = (
+                db.query(schema.ProductGroup)
+                .filter(schema.ProductGroup.name == str(row["product_group_id"]))
+                .first()
+            )
+            
+            if not product_group:
+                product_group = schema.ProductGroup(name=str(row["product_group_id"]))
+                db.add(product_group)
+                db.commit()
+                db.refresh(product_group)
+
+        # Find or create the steel grade
         steel_grade = (
             db.query(schema.SteelGrade)
             .filter(schema.SteelGrade.name == str(row["grade_name"]))
             .first()
         )
 
-        if steel_grade:
-            # Convert date if needed
-            production_date = (
-                pd.to_datetime(row["date"]).date()
-                if isinstance(row["date"], str)
-                else row["date"]
+        if not steel_grade:
+            # Create new steel grade
+            steel_grade = schema.SteelGrade(
+                name=str(row["grade_name"]),
+                product_group_id=product_group.id if product_group else None
             )
+            db.add(steel_grade)
+            db.commit()
+            db.refresh(steel_grade)
 
-            # Check if record already exists
-            existing = (
-                db.query(schema.HistoricalProduction)
-                .filter(
-                    schema.HistoricalProduction.date == production_date,
-                    schema.HistoricalProduction.grade_id == steel_grade.id,
-                )
-                .first()
+        # Convert date if needed
+        production_date = (
+            pd.to_datetime(row["date"]).date()
+            if isinstance(row["date"], str)
+            else row["date"]
+        )
+
+        # Check if record already exists
+        existing = (
+            db.query(schema.HistoricalProduction)
+            .filter(
+                schema.HistoricalProduction.date == production_date,
+                schema.HistoricalProduction.grade_id == steel_grade.id,
             )
+            .first()
+        )
 
-            if not existing:
-                production_record = schema.HistoricalProduction(
-                    date=production_date, tons=int(row["tons"]), grade_id=steel_grade.id
-                )
-                db.add(production_record)
-                records_inserted += 1
+        if not existing:
+            production_record = schema.HistoricalProduction(
+                date=production_date, tons=int(row["tons"]), grade_id=steel_grade.id
+            )
+            db.add(production_record)
+            records_inserted += 1
 
     db.commit()
     return records_inserted
@@ -106,20 +130,6 @@ def store_product_groups(df: pd.DataFrame, db: Session) -> int:
         )
 
         if product_group:
-            steel_grade = (
-                db.query(schema.SteelGrade)
-                .filter(schema.SteelGrade.name == str(row["product_group_name"]))
-                .first()
-            )
-
-            if not steel_grade:
-                steel_grade = schema.SteelGrade(
-                    name=str(row["product_group_name"]),
-                    product_group_id=product_group.id,
-                )
-                db.add(steel_grade)
-                db.commit()
-                db.refresh(steel_grade)
 
             # Convert date if needed
             forecast_date = (
@@ -179,10 +189,6 @@ def get_steel_grades(
     return db.query(schema.SteelGrade).offset(skip).limit(limit).all()
 
 
-def get_steel_grade_by_name(db: Session, name: str) -> Optional[schema.SteelGrade]:
-    """Get a steel grade by name."""
-    return db.query(schema.SteelGrade).filter(schema.SteelGrade.name == name).first()
-
 
 def create_steel_grade(
     db: Session, name: str, product_group_id: int
@@ -216,27 +222,6 @@ def get_historical_production(
     return query.offset(skip).limit(limit).all()
 
 
-def get_forecasted_production(
-    db: Session, product_group_id: Optional[int] = None
-) -> List[schema.ForecastedProduction]:
-    """
-    Get forecasted production data, optionally filtered by product group.
-
-    Args:
-        db (Session): Database session
-        product_group_id (Optional[int]): Filter by specific product group ID
-
-    Returns:
-        List[schema.ForecastedProduction]: List of forecasted production records
-    """
-    query = db.query(schema.ForecastedProduction)
-
-    if product_group_id:
-        query = query.filter(
-            schema.ForecastedProduction.product_group_id == product_group_id
-        )
-
-    return query.all()
 
 
 def get_forecasted_production(db: Session) -> List[schema.ForecastedProduction]:
@@ -354,7 +339,7 @@ def compute_forecast(
 
     for grade_name, weight_percentage in request.grade_percentages.items():
         # Find which product group this grade belongs to
-        steel_grade = get_steel_grade_by_name(db, grade_name)
+        steel_grade = get_steel_grade(db, grade_name)
 
         if steel_grade and steel_grade.product_group:
             group_name = steel_grade.product_group.name

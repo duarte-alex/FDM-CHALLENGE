@@ -94,56 +94,7 @@ def forecast_production(
             detail=f"Service unhealthy: {str(e)}",
             status_code=503,
         )
-
-
-@router.post(
-    "/upload/production-history",
-    response_model=pydantic.UploadResponse,
-    tags=["data-upload"],
-)
-def upload_production_history(
-    file: UploadFile = File(...), db: Session = Depends(get_db)
-):
-    """
-    ## Upload steel_grade_production file
-
-    **Accepted Formats:** `.xlsx`, `.xls`, `.csv`
-    """
-    if not file.filename.endswith((".csv", ".xlsx", ".xls")):
-        return create_error_response(
-            error="Invalid File Type",
-            detail="Only CSV or Excel files are supported",
-            status_code=400,
-        )
-
-    try:
-        df = preprocess.process_steel_grade(file)
     
-        records = crud.store_production_history(df, db)
-
-        if records == 0:
-            # Get some sample data for debugging
-            sample_grades = df["grade_name"].unique()[:2]
-            existing_grades = crud.get_steel_grades(db, limit=100)
-            existing_grade_names = [g.name for g in existing_grades]
-
-            return create_error_response(
-                error="No Records Inserted",
-                detail=f"No records inserted. Sample grades from file: {list(sample_grades)}. Existing grades in DB: {existing_grade_names[:10]}",
-                status_code=400,
-            )
-
-        return pydantic.UploadResponse(
-            message=f"Production history uploaded successfully. {records} records inserted.",
-            records_inserted=records,
-        )
-    except Exception as e:
-        return create_error_response(
-            error="File Processing Error",
-            detail=f"Error processing file: {str(e)}",
-            status_code=500,
-        )
-
 
 @router.post(
     "/upload/product-groups",
@@ -189,6 +140,45 @@ def upload_product_groups(file: UploadFile = File(...), db: Session = Depends(ge
 
 
 @router.post(
+    "/upload/production-history",
+    response_model=pydantic.UploadResponse,
+    tags=["data-upload"],
+)
+def upload_production_history(
+    file: UploadFile = File(...), db: Session = Depends(get_db)
+):
+    """
+    ## Upload steel_grade_production file
+
+    Upload product-groups first!
+
+    **Accepted Formats:** `.xlsx`, `.xls`, `.csv`
+    """
+    if not file.filename.endswith((".csv", ".xlsx", ".xls")):
+        return create_error_response(
+            error="Invalid File Type",
+            detail="Only CSV or Excel files are supported",
+            status_code=400,
+        )
+
+    try:
+        df = preprocess.process_steel_grade(file)
+        records = crud.store_production_history(df, db)
+
+        return pydantic.UploadResponse(
+            message=f"Production history uploaded successfully. {records} records inserted.",
+            records_inserted=records,
+        )
+    except Exception as e:
+        return create_error_response(
+            error="File Processing Error",
+            detail=f"Error processing file: {str(e)}",
+            status_code=500,
+        )
+
+
+
+@router.post(
     "/upload/daily-schedule",
     response_model=pydantic.UploadResponse,
     tags=["data-upload"],
@@ -197,18 +187,7 @@ def upload_daily_schedule(file: UploadFile = File(...), db: Session = Depends(ge
     """
     ## Upload Daily Production Schedule
 
-    Import daily production schedules for operational planning.
-
     **Accepted Formats:** `.xlsx`, `.xls`, `.csv`
-
-    **Expected Columns:** `date`, `grade_name`, `start_time`, `mould_size`
-
-    **Features:**
-    - Schedule production runs by date and time
-    - Track mould sizes for different steel grades
-    - Organize production workflow planning
-
-    **Note:** Ensure steel grades exist in the database before uploading schedules.
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
         return create_error_response(
