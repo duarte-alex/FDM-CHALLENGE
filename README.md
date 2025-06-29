@@ -40,7 +40,7 @@ FDM-CHALLENGE/
 ├── Dockerfile               # Container build instructions
 ├── init.sql                 # Database schema setup
 ├── README.md                # Project documentation
-├── forecast_logic.ipynb     # Linear fits plots
+├── forecast_logic.ipynb     # Linear plots for steel_grade_production
 └── requirements.txt         # Python dependencies
 ```
 
@@ -50,10 +50,7 @@ FDM-CHALLENGE/
 - **FastAPI + PostgreSQL**: Modern, high-performance API with robust database integration
 - **Dockerized Deployment**: One-command setup with `docker-compose up --build`
 - **Interactive Documentation**: Auto-generated OpenAPI docs at `/docs` for easy API exploration
-
-### **Forecasting Engine**
-- **Linear Regression Model**: Perfect correlation for group production predictions, scalable implementation and uncertainty discussion
-- **Real-Time Predictions**: RESTful endpoint for generating forecasts for any month for which there is a prediction
+- **Forecasting Endpoint**: User-defined steel grades and weights (see Forecasting Endpoint section)
 
 ### **Robust Data Processing Pipeline**
 - **Multi-Format Data Ingestion**: Seamlessly processes non-tabular data and Excel (.xlsx, .xls) and CSV files
@@ -68,29 +65,17 @@ FDM-CHALLENGE/
 - **Automated Testing**: pytest-based unittest suite
 - **CI/CD Pipeline**: GitHub Actions ensuring code quality with Black formatting
 
-## Forecasting logic
+## Forecasting endpoit
 
-The forecasting endpoint, runs a linear fit based on historical data where
-- x: production per quality group (short tons)
-- y: number of heats forecasted for quality group. 
+Firstly, I validated that the forecast on ```product_groups_monthly.xlsx``` accurately matches the production history by running a set of linear regressions presented in ```forecast_logic.ipynb```. For every product group the correlation coefficient is near-perfect $R \approx 1$ so the forecast already given doesn't need to be adjusted.
 
-For the data provided the linear fit coefficients were obtained with correlation coefficient $R \approx 1$:
+I decide the forecast endpoint should already recieve by the user the Grades specified and the percentage of the heats to of the Group that Grade should correspond to for the following reason:
 
-<p>
-P<sub>group</sub> = (A<sub>fit</sub> × X<sub>group forecast</sub> + B<sub>fit</sub>)</sub>
-</p>
+1) The uncertainty | mean - max deviation| is too large: check ```forecast_logic.ipynb```
 
-- **interpretability**: results for a linear regression are easy to communicate to client increasing their trust
-- **$R \approx 1$**: plotted in ```forecast_logic.ipynb```
+2) Data sparsity: the data is sparse which means so Grades should be set to zero
 
-By multiplying the total number predicted heats for the quality group, $P_{group}$, by expected percetange of each Grade in the Group **given to the endpoint**, I can return forecast data in a format ScrapCheft accepts for the selected grades and the others **are set to 0 ensuring the sparsity observed in the dataset**.
-
-<p>
-P<sub>grade</sub> = P<sub>group</sub> ×  G<sub>Grade % average</sub>
-</p>
-
-In ```forecast_logic.ipynb``` for each Grade the uncertainty (| mean - max deviation|) is calculated. This value can be quite high and is important to understand the strenght of the predictions for each Grade which varies significantly.
-
+3) Business logic: the Grades to produce shouldn't be predicted but instead given by the user since it depends on the scrap material available, budget and goals of the factory
 
 ## Running the API
 
@@ -218,12 +203,6 @@ erDiagram
 - `||--||` = One-to-One relationship  
 - `}o--o{` = Many-to-Many relationship
 
-### **Data Flow**
-
-1. **Excel Data Ingestion**: Raw data from Excel files is processed and stored
-2. **Historical Analysis**: Historical production data is analyzed using linear regression
-3. **Forecasting**: Predictions are generated and stored in ForecastedProduction
-4. **Scheduling**: Daily schedules are created based on forecasts and requirements
 
 ## Getting Started
 
@@ -263,6 +242,8 @@ erDiagram
 | GET | `/product-groups` | Get all product groups |
 | GET | `/steel-grades` | Get all steel grades with pagination |
 | GET | `/forecasted-production` | Get all forecasted production data with heats by date |
+| GET | `/historical-production` | Get all historical production data with tons by date |
+| GET | `/daily-schedules` | Get all daily production schedules with timing details |
 
 ## Unit Tests
 

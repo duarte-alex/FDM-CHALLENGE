@@ -36,7 +36,7 @@ CREATE TABLE forecasted_production (
     id SERIAL PRIMARY KEY,
     date DATE NOT NULL,
     heats INTEGER NOT NULL,
-    grade_id INTEGER NOT NULL REFERENCES steel_grades(id)
+    product_group_id INTEGER NOT NULL REFERENCES product_groups(id)
 );
 
 -- Create daily production schedule
