@@ -71,7 +71,7 @@ def store_product_groups(df: pd.DataFrame, db: Session) -> int:
     """
 
     records_inserted = 0
-    
+
     # First, store unique product groups
     unique_groups = df["product_group_name"].dropna().unique()
 
@@ -87,43 +87,47 @@ def store_product_groups(df: pd.DataFrame, db: Session) -> int:
             db.add(product_group)
             records_inserted += 1
 
-    db.commit()  # Commit product groups first
-    
+    db.commit()
+
     # Now store forecasted production data
     for _, row in df.iterrows():
-        if pd.isna(row["product_group_name"]) or pd.isna(row["date"]) or pd.isna(row["heats"]):
+        if (
+            pd.isna(row["product_group_name"])
+            or pd.isna(row["date"])
+            or pd.isna(row["heats"])
+        ):
             continue
-            
+
         # Find the product group
         product_group = (
             db.query(schema.ProductGroup)
             .filter(schema.ProductGroup.name == str(row["product_group_name"]))
             .first()
         )
-        
+
         if product_group:
             steel_grade = (
                 db.query(schema.SteelGrade)
                 .filter(schema.SteelGrade.name == str(row["product_group_name"]))
                 .first()
             )
-            
+
             if not steel_grade:
                 steel_grade = schema.SteelGrade(
                     name=str(row["product_group_name"]),
-                    product_group_id=product_group.id
+                    product_group_id=product_group.id,
                 )
                 db.add(steel_grade)
                 db.commit()
                 db.refresh(steel_grade)
-            
+
             # Convert date if needed
             forecast_date = (
                 pd.to_datetime(row["date"]).date()
                 if isinstance(row["date"], str)
                 else row["date"]
             )
-            
+
             # Check if forecasted production record already exists
             existing_forecast = (
                 db.query(schema.ForecastedProduction)
@@ -133,12 +137,12 @@ def store_product_groups(df: pd.DataFrame, db: Session) -> int:
                 )
                 .first()
             )
-            
+
             if not existing_forecast:
                 forecasted_production = schema.ForecastedProduction(
                     date=forecast_date,
                     heats=int(row["heats"]) if not pd.isna(row["heats"]) else 0,
-                    product_group_id=product_group.id
+                    product_group_id=product_group.id,
                 )
                 db.add(forecasted_production)
                 records_inserted += 1
@@ -212,7 +216,9 @@ def get_historical_production(
     return query.offset(skip).limit(limit).all()
 
 
-def get_forecasted_production(db: Session, product_group_id: Optional[int] = None) -> List[schema.ForecastedProduction]:
+def get_forecasted_production(
+    db: Session, product_group_id: Optional[int] = None
+) -> List[schema.ForecastedProduction]:
     """
     Get forecasted production data, optionally filtered by product group.
 
@@ -224,16 +230,16 @@ def get_forecasted_production(db: Session, product_group_id: Optional[int] = Non
         List[schema.ForecastedProduction]: List of forecasted production records
     """
     query = db.query(schema.ForecastedProduction)
-    
+
     if product_group_id:
-        query = query.filter(schema.ForecastedProduction.product_group_id == product_group_id)
-    
+        query = query.filter(
+            schema.ForecastedProduction.product_group_id == product_group_id
+        )
+
     return query.all()
 
 
-def get_forecasted_production(
-    db: Session
-) -> List[schema.ForecastedProduction]:
+def get_forecasted_production(db: Session) -> List[schema.ForecastedProduction]:
     """
     Get ForecastedProduction table
 
@@ -243,9 +249,7 @@ def get_forecasted_production(
     Returns:
         List[schema.ForecastedProduction]: List of forecasted production records
     """
-    return (
-        db.query(schema.ForecastedProduction).all()
-    )
+    return db.query(schema.ForecastedProduction).all()
 
 
 def get_daily_schedule(
@@ -308,53 +312,12 @@ def store_daily_schedule(df: pd.DataFrame, db: Session) -> int:
     return records_inserted
 
 
-def calculate_production_forecast_with_linear_fit(db: Session, grade_id: int) -> dict:
-    """
-    Calculate production forecast using linear regression on historical data.
-
-    Args:
-        db (Session): Database session
-        grade_id (int): Steel grade ID
-
-    Returns:
-        dict: Linear fit parameters and forecast data
-    """
-    # Get historical production data
-    historical_data = (
-        db.query(schema.HistoricalProduction)
-        .filter(schema.HistoricalProduction.grade_id == grade_id)
-        .order_by(schema.HistoricalProduction.date)
-        .all()
-    )
-
-    if len(historical_data) < 2:
-        return {"error": "Insufficient historical data for linear fit"}
-
-    # Prepare data for linear regression
-    dates = [record.date for record in historical_data]
-    tons = [record.tons for record in historical_data]
-
-    # Convert dates to numeric values (days since first date)
-    first_date = dates[0]
-    x_values = [(date - first_date).days for date in dates]
-
-    # Calculate linear fit
-    linear_fit_result = get_linear_fit(x_values, tons)
-
-    return {
-        "grade_id": grade_id,
-        "linear_fit": linear_fit_result,
-        "data_points": len(historical_data),
-        "date_range": {"start": first_date, "end": dates[-1]},
-    }
-
-
 def compute_forecast(
     request: pydantic.ForecastRequest, db: Session
 ) -> pydantic.ForecastOutput:
     """
     Compute production forecast based on request parameters.
-    
+
     Reads September forecasted heats from ForecastedProduction table for each product group,
     then distributes heats to specific steel grades based on provided weights.
 
@@ -369,43 +332,41 @@ def compute_forecast(
     if not request.grade_percentages:
         raise HTTPException(status_code=400, detail="No grade percentages provided")
 
-    # Set forecast date to September 2024 (or current year September)
-    forecast_date = date(2024, 9, 1)
-    
-    # Get forecasted production data for September from ForecastedProduction table
+    forecast_date = date(2024, 9, 24)
+
+    # get ForecastedProduction table
     forecasted_data = get_forecasted_production(db)
-    
-    # Filter for September data and group by product group
+
+    # return month forecast
     september_heats_by_group = {}
     for forecast in forecasted_data:
         if forecast.date.month == 9 and forecast.date.year == 2024:
-            group_name = forecast.product_group.name if forecast.product_group else "Unknown"
+            group_name = (
+                forecast.product_group.name if forecast.product_group else "Unknown"
+            )
             if group_name not in september_heats_by_group:
                 september_heats_by_group[group_name] = 0
             september_heats_by_group[group_name] += forecast.heats
-    
+
     # Calculate heats breakdown based on grade weights
     grade_breakdown = {}
     total_heats = 0
-    
+
     for grade_name, weight_percentage in request.grade_percentages.items():
         # Find which product group this grade belongs to
         steel_grade = get_steel_grade_by_name(db, grade_name)
-        
+
         if steel_grade and steel_grade.product_group:
             group_name = steel_grade.product_group.name
             group_total_heats = september_heats_by_group.get(group_name, 0)
-            
+
             # Calculate heats for this grade: group_heats * (weight / 100)
             grade_heats = int(group_total_heats * (weight_percentage / 100))
             grade_breakdown[grade_name] = grade_heats
             total_heats += grade_heats
         else:
-            # If grade not found in database, assign 0 heats
             grade_breakdown[grade_name] = 0
 
     return pydantic.ForecastOutput(
-        forecast_date=forecast_date,
-        grade_breakdown=grade_breakdown,
-        total_heats=total_heats,
+        forecast_date=forecast_date, grade_breakdown=grade_breakdown
     )

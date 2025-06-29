@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import linregress
 
+
 def plot_linear_fit(data: dict) -> None:
     """
     Plot linear regression fits for multiple datasets.

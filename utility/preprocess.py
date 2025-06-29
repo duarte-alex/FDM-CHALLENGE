@@ -126,4 +126,7 @@ def process_steel_grade(
     df = sheet_to_pandas(file, skip=1)
     df = df.dropna(axis=1, how="all")
     df[col_name] = df[col_name].ffill()
+    df = df.rename(columns={"Grade": "grade_name"})
+    df.drop(columns=["Quality group"], inplace=True)
+    df = df.melt(id_vars="grade_name", var_name="date", value_name="tons")
     return df
