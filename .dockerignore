@@ -37,6 +37,12 @@ fdm-challenge/
 .DS_Store
 Thumbs.db
 
+# Virtual environments
+venv/
+.venv/
+ENV/
+env/
+
 # Git
 .git/
 .gitignore
@@ -47,7 +53,6 @@ docker-compose*
 .dockerignore
 
 # Documentation
-*.md
 LICENSE
 
 # Jupyter notebooks

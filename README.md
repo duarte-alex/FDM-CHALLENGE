@@ -65,7 +65,7 @@ FDM-CHALLENGE/
 - **Automated Testing**: pytest-based unittest suite
 - **CI/CD Pipeline**: GitHub Actions ensuring code quality with Black formatting
 
-## Forecasting endpoit
+## Forecasting Endpoint
 
 Firstly, I validated that the forecast on ```product_groups_monthly.xlsx``` accurately matches the production history by running a set of linear regressions presented in ```forecast_logic.ipynb```. For every product group the correlation coefficient is near-perfect $R \approx 1$ so the forecast already given doesn't need to be adjusted.
 
@@ -87,24 +87,39 @@ The easiest way to run the project is using Docker, which automatically sets up 
 docker-compose up --build
 ```
 
-### Locally (Harder set up)
+### Locally (Alternative Setup)
 
-#### Install dependencies
+Here I detail the local set up using uv. This could also be done alternatively with python virtual environments. The file ```requirements.txt``` was left in this repository to allow the user to reproduce the results locally (and without uv).
 
-Create and activate your virtual environment:
+#### Install uv (if not already installed)
 ```bash
-python -m venv fdm-challenge
-source fdm-challenge/bin/activate
+# On macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# On Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Or with pip
+pip install uv
 ```
 
-I recommend the dependencies are installed with uv but pip can also be used:
+#### Install dependencies with uv
 ```bash
-# option 1
-pip install uv
-uv pip install -r requirements.txt
+# Install all dependencies (including dev dependencies)
+uv sync --all-extras
 
-# option 2
-pip install -r requirements.txt
+# Or install only production dependencies
+uv sync
+```
+
+#### Run the application
+```bash
+# Run with uv (recommended)
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# Or activate the virtual environment and run normally
+source .venv/bin/activate
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 #### Database commands
@@ -247,8 +262,34 @@ erDiagram
 
 ## Unit Tests
 
-The project includes a test suite to ensure API reliability. The tests validate core endpoints and error handling. The tests use FastAPI's TestClient for isolated testing without affecting production data. They can be run with:
+The project includes multiple test suites to ensure API reliability:
 
+### **Simple Tests (No Database Required)**
 ```bash
-pytest tests/
+# With uv (recommended)
+uv run pytest tests/test_simple.py -v
+
+# Or with activated venv
+pytest tests/test_simple.py -v
+```
+These tests validate basic API structure and endpoint responses without requiring database connections.
+
+### **Integration Tests (Docker Required)**
+```bash
+# Start Docker containers first
+docker-compose up -d
+
+# Run integration tests with uv
+uv run pytest tests/test_integration.py -v
+```
+These tests validate the full API functionality with a real database connection.
+
+### **Run All Tests**
+```bash
+# With uv
+uv run pytest tests/ -v
+
+# Or install dev dependencies and run
+uv sync --all-extras
+pytest tests/ -v
 ```

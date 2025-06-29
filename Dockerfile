@@ -18,11 +18,11 @@ RUN apt-get update \
 # Install uv for faster dependency management
 RUN pip install uv
 
-# Copy requirements first for better caching
-COPY requirements.txt .
+# Copy pyproject.toml, uv.lock, and README.md for dependency installation
+COPY pyproject.toml uv.lock* README.md ./
 
 # Install Python dependencies using uv
-RUN uv pip install --system -r requirements.txt
+RUN uv sync --frozen --no-dev --no-editable
 
 # Copy project files
 COPY . .
@@ -36,4 +36,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/docs || exit 1
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uv", "run", "--no-dev", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
