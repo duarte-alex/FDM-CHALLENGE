@@ -164,4 +164,3 @@ def test_api_structure():
 
     for endpoint in expected_endpoints:
         assert endpoint in endpoints
-

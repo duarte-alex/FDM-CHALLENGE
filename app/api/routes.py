@@ -60,10 +60,7 @@ def health_check(db: Session = Depends(get_db)):
             },
         }
     except Exception as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Service unhealthy: {str(e)}"
-        )
+        raise HTTPException(status_code=503, detail=f"Service unhealthy: {str(e)}")
 
 
 @router.post("/forecast", response_model=pydantic.ForecastOutput, tags=["forecasting"])
@@ -78,10 +75,7 @@ def forecast_production(
     try:
         return crud.compute_forecast(request, db)
     except Exception as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Service unhealthy: {str(e)}"
-        )
+        raise HTTPException(status_code=503, detail=f"Service unhealthy: {str(e)}")
 
 
 @router.post(
@@ -99,8 +93,7 @@ def upload_product_groups(file: UploadFile = File(...), db: Session = Depends(ge
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
         raise HTTPException(
-            status_code=400,
-            detail="Only CSV or Excel files are supported"
+            status_code=400, detail="Only CSV or Excel files are supported"
         )
 
     try:
@@ -119,10 +112,7 @@ def upload_product_groups(file: UploadFile = File(...), db: Session = Depends(ge
             records_inserted=records,
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error processing file: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
 
 @router.post(
@@ -142,8 +132,7 @@ def upload_production_history(
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
         raise HTTPException(
-            status_code=400,
-            detail="Only CSV or Excel files are supported"
+            status_code=400, detail="Only CSV or Excel files are supported"
         )
 
     try:
@@ -155,10 +144,7 @@ def upload_production_history(
             records_inserted=records,
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error processing file: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
 
 @router.post(
@@ -177,8 +163,7 @@ def upload_daily_schedule(file: UploadFile = File(...), db: Session = Depends(ge
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
         raise HTTPException(
-            status_code=400,
-            detail="Only CSV or Excel files are supported"
+            status_code=400, detail="Only CSV or Excel files are supported"
         )
 
     try:
@@ -187,8 +172,7 @@ def upload_daily_schedule(file: UploadFile = File(...), db: Session = Depends(ge
 
         if not success:
             raise HTTPException(
-                status_code=500,
-                detail="Failed to process the daily schedule file"
+                status_code=500, detail="Failed to process the daily schedule file"
             )
 
         processed_files = glob.glob("data/processed/charge_schedule_*.csv")
@@ -223,10 +207,7 @@ def upload_daily_schedule(file: UploadFile = File(...), db: Session = Depends(ge
     except HTTPException:
         raise  # Re-raise HTTPExceptions as-is
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error processing file: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
 
 @router.get("/product-groups", tags=["reference"])
