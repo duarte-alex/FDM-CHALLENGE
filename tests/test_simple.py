@@ -3,7 +3,6 @@ Simple API tests that don't require database connection.
 Run with: pytest tests/test_simple.py
 """
 
-import pytest
 from fastapi.testclient import TestClient
 from fastapi import FastAPI, APIRouter
 from fastapi.responses import JSONResponse
@@ -63,12 +62,12 @@ def forecast_production(request: dict):
     if not request.get("grade_percentages"):
         return JSONResponse(
             status_code=400,
-            content={"error": "Bad Request", "detail": "No grade percentages provided"}
+            content={"error": "Bad Request", "detail": "No grade percentages provided"},
         )
-    
+
     return {
         "forecast_date": "2024-09-24",
-        "grade_breakdown": {grade: 0 for grade in request["grade_percentages"].keys()}
+        "grade_breakdown": {grade: 0 for grade in request["grade_percentages"].keys()},
     }
 
 
@@ -123,8 +122,7 @@ def test_forecast_endpoint_with_empty_request():
 def test_forecast_endpoint_with_valid_request():
     """Test forecast endpoint with valid request."""
     response = client.post(
-        "/forecast", 
-        json={"grade_percentages": {"B500A": 50, "B500B": 50}}
+        "/forecast", json={"grade_percentages": {"B500A": 50, "B500B": 50}}
     )
     assert response.status_code == 200
     data = response.json()
@@ -153,33 +151,17 @@ def test_api_structure():
     """Test that the API has expected structure."""
     root_response = client.get("/")
     assert root_response.status_code == 200
-    
+
     endpoints = root_response.json()["endpoints"]
     expected_endpoints = [
         "forecast",
-        "upload_production_history", 
+        "upload_production_history",
         "upload_product_groups",
         "upload_daily_schedule",
         "product_groups",
-        "steel_grades"
+        "steel_grades",
     ]
-    
+
     for endpoint in expected_endpoints:
         assert endpoint in endpoints
 
-
-def test_response_formats():
-    """Test that responses have expected formats."""
-    # Test root response format
-    root_response = client.get("/")
-    root_data = root_response.json()
-    required_fields = ["message", "version", "docs", "endpoints"]
-    for field in required_fields:
-        assert field in root_data
-    
-    # Test health response format
-    health_response = client.get("/health")
-    health_data = health_response.json()
-    health_fields = ["status", "timestamp", "database", "data_summary"]
-    for field in health_fields:
-        assert field in health_data

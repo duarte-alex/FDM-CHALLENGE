@@ -123,12 +123,14 @@ def process_steel_grade(
     Returns:
         pd.DataFrame: Processed DataFrame.
     """
-    df = sheet_to_pandas(file, skip=1)
-    df = df.dropna(axis=1, how="all")
-    df[col_name] = df[col_name].ffill()
-    df = df.rename(columns={"Grade": "grade_name"})
-    df = df.rename(columns={"Quality group": "product_group_id"})
-    df = df.melt(
-        id_vars=["grade_name", "product_group_id"], var_name="date", value_name="tons"
+    return (
+        sheet_to_pandas(file, skip=1)
+        .dropna(axis=1, how="all")
+        .assign(**{col_name: lambda df: df[col_name].ffill()})
+        .rename(columns={"Grade": "grade_name", "Quality group": "product_group_id"})
+        .melt(
+            id_vars=["grade_name", "product_group_id"],
+            var_name="date",
+            value_name="tons",
+        )
     )
-    return df

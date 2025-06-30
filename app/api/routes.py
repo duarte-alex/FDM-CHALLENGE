@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, File
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import crud
@@ -12,20 +11,10 @@ import glob
 router = APIRouter()
 
 
-def create_error_response(
-    error: str, detail: str, status_code: int = 500
-) -> JSONResponse:
-    """Create a structured error response using the ErrorResponse model."""
-    error_data = pydantic.ErrorResponse(
-        error=error, detail=detail, timestamp=datetime.now().isoformat()
-    )
-    return JSONResponse(status_code=status_code, content=error_data.model_dump())
-
-
 @router.get("/", tags=["root"])
 def root():
     """
-    Welcome to the Steel Production Forecast API
+    Welcome to the Steel Production API
 
     This is the main entry point for the Steel Production Planning & Forecasting System.
     Navigate to `/docs` for interactive API documentation.
@@ -71,10 +60,9 @@ def health_check(db: Session = Depends(get_db)):
             },
         }
     except Exception as e:
-        return create_error_response(
-            error="Service Unhealthy",
-            detail=f"Service unhealthy: {str(e)}",
+        raise HTTPException(
             status_code=503,
+            detail=f"Service unhealthy: {str(e)}"
         )
 
 
@@ -90,10 +78,9 @@ def forecast_production(
     try:
         return crud.compute_forecast(request, db)
     except Exception as e:
-        return create_error_response(
-            error="Service Unhealthy",
-            detail=f"Service unhealthy: {str(e)}",
+        raise HTTPException(
             status_code=503,
+            detail=f"Service unhealthy: {str(e)}"
         )
 
 
@@ -108,13 +95,12 @@ def upload_product_groups(file: UploadFile = File(...), db: Session = Depends(ge
 
     **Accepted Formats:** `.xlsx`, `.xls`, `.csv`
 
-    This function stores records on the ProductGroup table and ForecastedProduction (if not exists)
+    This function stores records on the ProductGroup table and ForecastedProduction.
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
-        return create_error_response(
-            error="Invalid File Type",
-            detail="Only CSV or Excel files are supported",
+        raise HTTPException(
             status_code=400,
+            detail="Only CSV or Excel files are supported"
         )
 
     try:
@@ -133,10 +119,9 @@ def upload_product_groups(file: UploadFile = File(...), db: Session = Depends(ge
             records_inserted=records,
         )
     except Exception as e:
-        return create_error_response(
-            error="File Processing Error",
-            detail=f"Error processing file: {str(e)}",
+        raise HTTPException(
             status_code=500,
+            detail=f"Error processing file: {str(e)}"
         )
 
 
@@ -156,10 +141,9 @@ def upload_production_history(
     **Accepted Formats:** `.xlsx`, `.xls`, `.csv`
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
-        return create_error_response(
-            error="Invalid File Type",
-            detail="Only CSV or Excel files are supported",
+        raise HTTPException(
             status_code=400,
+            detail="Only CSV or Excel files are supported"
         )
 
     try:
@@ -171,10 +155,9 @@ def upload_production_history(
             records_inserted=records,
         )
     except Exception as e:
-        return create_error_response(
-            error="File Processing Error",
-            detail=f"Error processing file: {str(e)}",
+        raise HTTPException(
             status_code=500,
+            detail=f"Error processing file: {str(e)}"
         )
 
 
@@ -193,10 +176,9 @@ def upload_daily_schedule(file: UploadFile = File(...), db: Session = Depends(ge
     It stores records on the DailyProductionSchedule table.
     """
     if not file.filename.endswith((".csv", ".xlsx", ".xls")):
-        return create_error_response(
-            error="Invalid File Type",
-            detail="Only CSV or Excel files are supported",
+        raise HTTPException(
             status_code=400,
+            detail="Only CSV or Excel files are supported"
         )
 
     try:
@@ -204,10 +186,9 @@ def upload_daily_schedule(file: UploadFile = File(...), db: Session = Depends(ge
         success = preprocess.handle_non_tabular(file)
 
         if not success:
-            return create_error_response(
-                error="File Processing Error",
-                detail="Failed to process the daily schedule file",
+            raise HTTPException(
                 status_code=500,
+                detail="Failed to process the daily schedule file"
             )
 
         processed_files = glob.glob("data/processed/charge_schedule_*.csv")
@@ -239,11 +220,12 @@ def upload_daily_schedule(file: UploadFile = File(...), db: Session = Depends(ge
             records_inserted=total_records,
         )
 
+    except HTTPException:
+        raise  # Re-raise HTTPExceptions as-is
     except Exception as e:
-        return create_error_response(
-            error="File Processing Error",
-            detail=f"Error processing file: {str(e)}",
+        raise HTTPException(
             status_code=500,
+            detail=f"Error processing file: {str(e)}"
         )
 
 
