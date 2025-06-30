@@ -1,6 +1,6 @@
 # FDM-CHALLENGE
 
-In this repository an API and database schema are implemented for a steel plant's production plans.
+This repository implements an API and database schema for a steel plant's production plans.
 
 ## Repository Structure
 
@@ -33,15 +33,17 @@ FDM-CHALLENGE/
 │
 ├── utility/                 # Helper functions
 │   ├── preprocess.py        # Data preprocessing
-│   └── linear_fit.py        # Forecasting logic
+│   └── linear_fit.py        # Confirming given forecast
 │
-├── .github/workflows        # CI/CD automation
+├── .github/workflows        # CI/CD automation for black
 ├── docker-compose.yml       # Container orchestration
 ├── Dockerfile               # Container build instructions
 ├── init.sql                 # Database schema setup
 ├── README.md                # Project documentation
 ├── forecast_logic.ipynb     # Linear plots for steel_grade_production
-└── requirements.txt         # Python dependencies
+├── requirements.txt         # Python dependencies
+├── uv.lock                  # Deterministic env
+└── pyproject.toml
 ```
 
 ## Project Highlights
@@ -55,6 +57,7 @@ FDM-CHALLENGE/
 ### **Robust Data Processing Pipeline**
 - **Multi-Format Data Ingestion**: Seamlessly processes non-tabular data and Excel (.xlsx, .xls) and CSV files
 - **Data Validation**: Pydantic models ensure data integrity throughout the pipeline
+- **DB Indexed**: Index added for faster queries
 
 ### **API Design**
 - **Modular Design**
@@ -62,18 +65,18 @@ FDM-CHALLENGE/
 - **Scalable Schema**
 
 ### **Quality Assurance**
-- **Automated Testing**: pytest-based unittest suite
+- **Automated Testing**: pytest-based test suite
 - **CI/CD Pipeline**: GitHub Actions ensuring code quality with Black formatting
 
 ## Forecasting Endpoint
 
 Firstly, I validated that the forecast on ```product_groups_monthly.xlsx``` accurately matches the production history by running a set of linear regressions presented in ```forecast_logic.ipynb```. For every product group the correlation coefficient is near-perfect $R \approx 1$ so the forecast already given doesn't need to be adjusted.
 
-I decide the forecast endpoint should already recieve by the user the Grades specified and the percentage of the heats to of the Group that Grade should correspond to for the following reason:
+I decide the forecast endpoint should already receive from the user the Grades specified and the percentage of the heats of the Group that Grade should correspond to for the following reasons:
 
 1) The uncertainty | mean - max deviation| is too large: check ```forecast_logic.ipynb```
 
-2) Data sparsity: the data is sparse which means so Grades should be set to zero
+2) Data sparsity: the data is sparse which means many Grades should be set to zero
 
 3) Business logic: the Grades to produce shouldn't be predicted but instead given by the user since it depends on the scrap material available, budget and goals of the factory
 
@@ -89,7 +92,7 @@ docker-compose up --build
 
 ### Locally (Alternative Setup)
 
-Here I detail the local set up using uv. This could also be done alternatively with python virtual environments. The file ```requirements.txt``` was left in this repository to allow the user to reproduce the results locally (and without uv).
+Here I detail the local setup using uv. This could also be done alternatively with python virtual environments. The file ```requirements.txt``` was left in this repository to allow the user to reproduce the results locally (and without uv).
 
 #### Install uv (if not already installed)
 ```bash
@@ -137,12 +140,12 @@ GRANT ALL PRIVILEGES ON DATABASE steel_db TO steel;
 \q
 ```
 
-Next, intialize the tables and grant permissions:
+Next, initialize the tables and grant permissions:
 ```
 sudo -u postgres psql -d steel_db -f init.sql
 ```
 
-You can check the tables were creating by running in psql:
+You can check the tables were created by running in psql:
 ```
 SELECT table_name FROM information_schema.tables 
 WHERE table_schema = 'public';
@@ -250,7 +253,7 @@ erDiagram
 | GET | `/` | API information and available endpoints |
 | GET | `/health` | Health check endpoint for monitoring |
 | GET | `/docs` | Interactive API documentation |
-| POST | `/forecast` | Generate production forecasts using linear regression |
+| POST | `/forecast` | Production forecast for September in ScrapCheft format |
 | POST | `/upload/production-history` | Upload historical production data |
 | POST | `/upload/product-groups` | Upload product groups and steel grades |
 | POST | `/upload/daily-schedule` | Upload daily production schedules |
@@ -266,30 +269,15 @@ The project includes multiple test suites to ensure API reliability:
 
 ### **Simple Tests (No Database Required)**
 ```bash
-# With uv (recommended)
-uv run pytest tests/test_simple.py -v
-
-# Or with activated venv
 pytest tests/test_simple.py -v
 ```
 These tests validate basic API structure and endpoint responses without requiring database connections.
 
-### **Integration Tests (Docker Required)**
-```bash
-# Start Docker containers first
-docker-compose up -d
 
-# Run integration tests with uv
-uv run pytest tests/test_integration.py -v
-```
-These tests validate the full API functionality with a real database connection.
+## Next Steps
 
-### **Run All Tests**
-```bash
-# With uv
-uv run pytest tests/ -v
-
-# Or install dev dependencies and run
-uv sync --all-extras
-pytest tests/ -v
-```
+- Switch from Pandas to Polars
+- Add more indexes ot the database
+- Improve error handling
+- Improve test suite
+- Make API more versatile

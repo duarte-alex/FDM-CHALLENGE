@@ -4,7 +4,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive
 
-# Set work directory
 WORKDIR /app
 
 # Install system dependencies
@@ -15,7 +14,7 @@ RUN apt-get update \
         curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv for faster dependency management
+# Install uv
 RUN pip install uv
 
 # Copy pyproject.toml, uv.lock, and README.md for dependency installation
@@ -27,7 +26,6 @@ RUN uv sync --frozen --no-dev --no-editable
 # Copy project files
 COPY . .
 
-# Create processed data directory
 RUN mkdir -p data/processed
 
 EXPOSE 8000
