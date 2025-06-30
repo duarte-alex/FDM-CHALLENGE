@@ -47,3 +47,6 @@ CREATE TABLE daily_production_schedule (
     mould_size VARCHAR,
     grade_id INTEGER NOT NULL REFERENCES steel_grades(id)
 );
+
+-- simple index for date-based queries on historical production
+CREATE INDEX idx_historical_production_date ON historical_production(date);

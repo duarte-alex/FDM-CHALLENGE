@@ -24,7 +24,7 @@ class SteelGrade(Base):
 class HistoricalProduction(Base):
     __tablename__ = "historical_production"
     id = Column(Integer, primary_key=True)
-    date = Column(Date)
+    date = Column(Date, index=True) 
     tons = Column(Integer)
     grade_id = Column(Integer, ForeignKey("steel_grades.id"))
 
