@@ -68,9 +68,28 @@ def forecast_production(
     request: pydantic.ForecastRequest, db: Session = Depends(get_db)
 ):
     """
-    ## Generate Production Forecasts
+    ## Generate September Production Forecasts by Steel Grade
 
-    User interface for generating production forecasts for specified steel grades.
+    [CHECK REAMDE: Forecasting Endpoint section for a endpoint justification]
+
+    Calculate production forecasts for September based on user-defined steel grade weights
+    and historical production patterns. This endpoint allows users to specify the exact
+    steel grades they want to produce and their relative proportions within each product group.
+
+    ### Request Format
+    Provide a dictionary where:
+    - **Keys**: Steel grade names (e.g., "Grade_A", "Grade_B")
+    - **Values**: Weight percentages within the product group (should sum to 100% per group)
+
+    ### Business Logic
+    1. Validates that all specified grades exist in the database
+    2. Groups grades by their product groups
+    3. Retrieves September forecast data for each product group
+    4. Distributes the forecasted heats according to user-specified weights
+    5. Returns tons breakdown by steel grade for September
+
+    ### Response
+    Returns detailed production forecast for September in a format ScrapCheft accepts.
     """
     try:
         return crud.compute_forecast(request, db)
